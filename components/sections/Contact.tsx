@@ -6,7 +6,7 @@ import { KAKAO_LINK, INSTAGRAM_URL, INSTAGRAM_HANDLE } from '@/lib/constants'
 
 export default function Contact() {
   return (
-    <section id="contact" className="py-32 px-8 text-center">
+    <section id="contact" className="py-32 px-4 md:px-8 text-center">
       <motion.div
         className="mb-12 flex justify-center"
         initial={{ opacity: 0 }}

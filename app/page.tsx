@@ -14,7 +14,7 @@ export default function Page() {
       <About />
       <Services />
       <Contact />
-      <footer className="py-12 px-8 border-t border-[#E8E6E3]">
+      <footer className="py-12 px-4 md:px-8 border-t border-[#E8E6E3]">
         <p className="text-[10px] tracking-[0.2em] uppercase font-sans text-text-secondary text-center">
           © {new Date().getFullYear()} Jiye Lee
         </p>
