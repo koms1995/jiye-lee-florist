@@ -5,7 +5,7 @@ import './globals.css'
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
+  weight: ['300', '400'],
   style: ['normal', 'italic'],
   variable: '--font-cormorant',
 })
@@ -17,7 +17,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'Jiye Lee — Florist',
-  description: 'Floral design by Jiye Lee. Bouquets, arrangements, and wedding flowers.',
+  description: 'Floral design by Jiye Lee. Seasonal arrangements for weddings, events & editorial.',
   openGraph: {
     title: 'Jiye Lee — Florist',
     description: 'Floral design by Jiye Lee.',
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${inter.variable}`}>
+    <html lang="ko" className={`${cormorant.variable} ${inter.variable}`}>
       <body>
         {children}
         <Analytics />

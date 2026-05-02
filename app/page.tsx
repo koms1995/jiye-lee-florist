@@ -1,15 +1,14 @@
-import Navbar from '@/components/Navbar'
-import Gallery from '@/components/sections/Gallery'
-import About from '@/components/sections/About'
-import Footer from '@/components/Footer'
+import fs from 'fs'
+import path from 'path'
+import PortfolioApp from '@/components/PortfolioApp'
 
 export default function Page() {
-  return (
-    <main className="bg-background min-h-screen">
-      <Navbar />
-      <Gallery />
-      <About />
-      <Footer />
-    </main>
-  )
+  const galleryDir = path.join(process.cwd(), 'public/images/gallery')
+  const images = fs
+    .readdirSync(galleryDir)
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .sort()
+    .map((f) => `/images/gallery/${f}`)
+
+  return <PortfolioApp images={images} />
 }
