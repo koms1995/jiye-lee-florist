@@ -184,10 +184,13 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
   }, [])
 
   // ── Native event listeners ─────────────────────────────────────────────────
-  // Mounted once — reads only refs so stale-closure is not an issue.
+  // Runs once after ready→true, so containerRef and colRefs are populated.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+
+    // Set initial column transforms now that colRefs are populated
+    updateColumns(accumRef.current)
 
     const safeEl = el  // narrowed const; closures can't widen it back to null
 
@@ -227,7 +230,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
 
       if (Math.abs(t.clientY - touchStartY) > 3) isDragging.current = true
 
-      inertia.current.vel = (dy / dt) * 16.67
+      inertia.current.vel = (-dy / dt) * 16.67  // negated: vel tracks accum change rate
       touchLastY = t.clientY
       touchLastT = now
 
@@ -269,7 +272,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
 
       if (Math.abs(e.clientY - mouseStartY) > 3) isDragging.current = true
 
-      inertia.current.vel = (dy / dt) * 16.67
+      inertia.current.vel = (-dy / dt) * 16.67  // negated: vel tracks accum change rate
       mouseLastY = e.clientY
       mouseLastT = now
 
