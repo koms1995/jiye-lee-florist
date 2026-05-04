@@ -4,28 +4,24 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useMotionValue } from 'framer-motion'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const N_ROWS       = 5        // rows per column-strip (matches nrly.co 5-row page)
+const N_ROWS       = 5
 const N_COLORS     = 4
-const STRIP_COPIES = 12       // must be multiple of N_COLORS; 12 = 3 color cycles, ample for wrap
-const SCROLL_START = 500_000
-const GAP          = 2        // px gap between every cell (row and column)
+const STRIP_COPIES = 12
+const GAP          = 2
 
-// ── Column config ──────────────────────────────────────────────────────────────
-// nrly.co: 5 cols on both desktop and mobile; outer cols faster for parallax depth
 const N_COLS   = 5
 const SPEEDS   = [1.14, 0.88, 1.00, 0.88, 1.14] as const
-const TEXT_COL = 2   // center column
-const TEXT_ROW = 2   // middle row of 5
+const TEXT_COL = 2
+const TEXT_ROW = 2
 
-// nrly.co cell height ratios (measured: 414/900 desktop, 312/844 mobile)
 const DESKTOP_CELL_H_RATIO = 0.46
 const MOBILE_CELL_H_RATIO  = 0.37
+const MOBILE_COL_W_RATIO   = 0.641
+const IMG_OFFSETS           = [0, 5, 10, 14, 19] as const
 
-// nrly.co mobile: each col ≈ 250px on 390px viewport → grid bleeds off both sides
-const MOBILE_COL_W_RATIO = 0.641
-
-// Image offsets: 5 cols — 5+5+4+5+5 = 24 images
-const IMG_OFFSETS = [0, 5, 10, 14, 19] as const
+// Momentum decay: 0.92^60 ≈ 0.007 → stops within ~1 second
+const FRICTION = 0.92
+const MIN_VEL  = 0.3   // px/frame threshold to stop inertia
 
 // ── Colorways ──────────────────────────────────────────────────────────────────
 type Colorway = { bg: string; name: string; text: string }
@@ -48,6 +44,10 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
   return a
 }
 
+function wrappedY(y: number, lo: number, wrapSize: number): number {
+  return ((y - lo) % wrapSize + wrapSize) % wrapSize + lo
+}
+
 // ── Dims ───────────────────────────────────────────────────────────────────────
 type Dims = {
   nCols:      number
@@ -58,13 +58,12 @@ type Dims = {
   speeds:     readonly number[]
   imgOffsets: readonly number[]
   isMobile:   boolean
-  gridOffset: number   // left shift so center col (col 2) sits in viewport center on mobile
+  gridOffset: number
 }
 
 function computeDims(w: number, h: number): Dims {
   const isMobile = w < 640
   const cellH    = Math.round(h * (isMobile ? MOBILE_CELL_H_RATIO : DESKTOP_CELL_H_RATIO))
-  // Trailing GAP after last row becomes the inter-strip gap — keeps wrap seamless
   const stripH   = N_ROWS * (cellH + GAP)
 
   let colW: number, gridOffset: number
@@ -98,7 +97,19 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const dimsRef  = useRef<Dims | null>(null)
   const initYRef = useRef(0)
 
-  // 5 MotionValues — one per column. Declared at top level (hooks can't be in loops).
+  // Virtual scroll accumulator — replaces window.scrollY (no 1M px body needed)
+  const accumRef = useRef(0)
+
+  // Inertia state
+  const inertia = useRef<{ vel: number; rafId: number | null }>({ vel: 0, rafId: null })
+
+  // Pointer tracking
+  const ptr = useRef<{ active: boolean; lastY: number; lastT: number }>({ active: false, lastY: 0, lastT: 0 })
+
+  // Drag vs tap detection (shared with TextCard via data attributes)
+  const isDragging = useRef(false)
+
+  // MotionValues — one per column, declared at top level (no loops)
   const dispY0 = useMotionValue(0)
   const dispY1 = useMotionValue(0)
   const dispY2 = useMotionValue(0)
@@ -106,90 +117,128 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const dispY4 = useMotionValue(0)
   const dispYs = useRef([dispY0, dispY1, dispY2, dispY3, dispY4])
 
-  // ── Setup: scroll plumbing, init, resize ────────────────────────────────────
+  // ── Column update ──────────────────────────────────────────────────────────
+  function updateColumns(accum: number) {
+    const d = dimsRef.current
+    if (!d) return
+    const wrapSize = N_COLORS * d.stripH
+    const lo       = -(STRIP_COPIES - N_COLORS) * d.stripH
+    for (let c = 0; c < d.nCols; c++) {
+      dispYs.current[c].set(wrappedY(initYRef.current - accum * d.speeds[c], lo, wrapSize))
+    }
+  }
+
+  // ── Inertia decay loop ─────────────────────────────────────────────────────
+  function startInertia() {
+    const ia = inertia.current
+    if (ia.rafId !== null) cancelAnimationFrame(ia.rafId)
+    function step() {
+      if (Math.abs(ia.vel) < MIN_VEL) { ia.rafId = null; return }
+      ia.vel       *= FRICTION
+      accumRef.current += ia.vel
+      updateColumns(accumRef.current)
+      ia.rafId = requestAnimationFrame(step)
+    }
+    ia.rafId = requestAnimationFrame(step)
+  }
+
+  // ── Init + resize ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (typeof history !== 'undefined') history.scrollRestoration = 'manual'
-
-    document.documentElement.style.overflow = 'visible'
-    document.documentElement.style.height   = 'auto'
-    document.body.style.overflow             = 'visible'
-    document.body.style.height               = 'auto'
-    document.body.style.minHeight            = `${SCROLL_START * 2}px`
-    document.documentElement.style.overscrollBehavior = 'none'
-    document.body.style.overscrollBehavior             = 'none'
-
-    let rafId: number | null = null
-
-    // Modular wrap: brings y into [lo, lo+wrapSize) without while-loops.
-    // wrapSize = N_COLORS * stripH → colorway index is preserved across teleports.
-    function wrappedY(y: number, lo: number, wrapSize: number): number {
-      return ((y - lo) % wrapSize + wrapSize) % wrapSize + lo
-    }
-
-    function updateColumns() {
-      rafId = null
-      const d = dimsRef.current
-      if (!d) return
-      const delta    = window.scrollY - SCROLL_START
-      const initY    = initYRef.current
-      const wrapSize = N_COLORS * d.stripH
-      const lo       = -(STRIP_COPIES - N_COLORS) * d.stripH
-      for (let c = 0; c < d.nCols; c++) {
-        dispYs.current[c].set(wrappedY(initY - delta * d.speeds[c], lo, wrapSize))
-      }
-    }
-
-    function onScroll() {
-      // Batch multiple scroll events into one RAF — avoids redundant updates.
-      if (rafId === null) rafId = requestAnimationFrame(updateColumns)
-    }
-
     function init() {
       const w = window.innerWidth
       const h = window.innerHeight
       const d = computeDims(w, h)
       dimsRef.current = d
 
+      // Position text card in viewport center at accum=0
       const midCopy    = Math.floor(STRIP_COPIES / 2)
       const textCenter = midCopy * d.stripH + TEXT_ROW * d.cellH + d.cellH / 2
       initYRef.current = Math.round(-(textCenter - h / 2))
 
-      // Apply initial positions directly (no scroll event yet)
-      updateColumns()
+      updateColumns(accumRef.current)
       setDims(d)
       setReady(true)
     }
 
     init()
-    window.scrollTo(0, SCROLL_START)
-    window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', init)
-
     return () => {
-      window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', init)
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      document.documentElement.style.overflow = ''
-      document.documentElement.style.height   = ''
-      document.body.style.overflow             = ''
-      document.body.style.height               = ''
-      document.body.style.minHeight            = ''
-      document.documentElement.style.overscrollBehavior = ''
-      document.body.style.overscrollBehavior             = ''
+      if (inertia.current.rafId !== null) cancelAnimationFrame(inertia.current.rafId)
     }
   }, [])
 
+  // ── Pointer handlers ───────────────────────────────────────────────────────
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const ia = inertia.current
+    if (ia.rafId !== null) { cancelAnimationFrame(ia.rafId); ia.rafId = null }
+    ia.vel = 0
+    ptr.current = { active: true, lastY: e.clientY, lastT: performance.now() }
+    isDragging.current = false
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const p = ptr.current
+    if (!p.active) return
+    const now = performance.now()
+    const dy  = e.clientY - p.lastY
+    const dt  = Math.max(now - p.lastT, 1)
+
+    if (Math.abs(e.clientY - ptr.current.lastY) > 3) isDragging.current = true
+
+    // velocity in px/frame at 60fps — used for inertia on release
+    inertia.current.vel = (dy / dt) * 16.67
+
+    p.lastY = e.clientY
+    p.lastT = now
+
+    // Drag UP (dy < 0) → accum increases → content scrolls up
+    accumRef.current -= dy
+    updateColumns(accumRef.current)
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    ptr.current.active = false
+
+    // Tap: small movement → find TextCard and fire profile click
+    if (!isDragging.current) {
+      let node = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      while (node && node !== e.currentTarget) {
+        if (node.dataset.si !== undefined) {
+          onProfileClick(node.dataset.bg ?? '', parseInt(node.dataset.si))
+          return
+        }
+        node = node.parentElement
+      }
+    }
+
+    startInertia()
+  }
+
+  // Wheel: trackpad delivers natural momentum, mouse wheel gets mild inertia
+  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
+    const ia = inertia.current
+    if (ia.rafId !== null) { cancelAnimationFrame(ia.rafId); ia.rafId = null }
+    accumRef.current += e.deltaY
+    // Mouse wheel: add inertia kick. Trackpad: OS momentum handles it.
+    if (Math.abs(e.deltaY) > 30) {
+      ia.vel = e.deltaY * 0.25
+      startInertia()
+    } else {
+      ia.vel = 0
+      updateColumns(accumRef.current)
+    }
+  }
+
   // ── Per-column image arrays ────────────────────────────────────────────────
-  // Desktop: offsets [0,5,10,14,19] → 5+5+4+5+5 = 24 images, all used
-  // Mobile:  col 2 (center, only fully-visible col) gets all 24 images so every
-  //          image is eventually seen as the user scrolls; side cols use offsets.
   const colImages = useMemo((): string[][] => {
     if (!dims || images.length === 0) return []
     const shuffled = seededShuffle(images, 42)
     const { nCols, imgOffsets, textCol, isMobile } = dims
 
     return Array.from({ length: nCols }, (_, c) => {
-      if (isMobile && c === textCol) return shuffled   // all 24 cycle through center col
+      if (isMobile && c === textCol) return shuffled
       const off = imgOffsets[c]
       return Array.from({ length: N_ROWS }, (_, i) =>
         shuffled[(off + i) % shuffled.length]
@@ -201,29 +250,33 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const { nCols, colW, cellH, stripH, textCol, isMobile, gridOffset } = dims
 
   return (
-    // Fixed visual layer — pointer-events none so scroll events reach document;
-    // touch-action pan-y explicitly allows iOS vertical touch-scroll.
+    // Fixed overlay — no native scroll, pointer events drive the grid
     <div
       className="fixed inset-0 select-none"
       style={{
-        overflow: 'clip',
-        opacity: ready ? 1 : 0,
-        transition: 'opacity 0.5s ease',
-        pointerEvents: 'none',
-        touchAction: 'pan-y',
+        overflow:    'clip',
+        opacity:     ready ? 1 : 0,
+        transition:  'opacity 0.5s ease',
+        touchAction: 'none',   // prevent native scroll; we handle it ourselves
+        cursor:      'ns-resize',
       }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onWheel={onWheel}
     >
       {Array.from({ length: nCols }, (_, c) => (
         <motion.div
           key={c}
           style={{
-            y:                dispYs.current[c],
-            position:         'absolute',
-            left:             gridOffset + c * (colW + GAP),
-            top:              0,
-            width:            colW,
-            height:           STRIP_COPIES * stripH,
-            willChange:       'transform',
+            y:                  dispYs.current[c],
+            position:           'absolute',
+            left:               gridOffset + c * (colW + GAP),
+            top:                0,
+            width:              colW,
+            height:             STRIP_COPIES * stripH,
+            willChange:         'transform',
             backfaceVisibility: 'hidden',
           }}
         >
@@ -254,17 +307,14 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
                         width={colW}
                         height={cellH}
                         colorway={colorway}
-                        onProfileClick={onProfileClick}
                         isMobile={isMobile}
                         si={si}
                       />
                     )
                   }
 
-                  // Map row index → image array index, skipping text-card slot
                   const imgIdx = (c === textCol && r > TEXT_ROW) ? r - 1 : r
                   const imgs   = colImages[c]
-                  // Mobile center col: advance by strip so all 24 images cycle through
                   const IMGS_PER_STRIP = N_ROWS - 1
                   const src = (isMobile && c === textCol && imgs.length > N_ROWS)
                     ? imgs[(si * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
@@ -313,10 +363,11 @@ function ImageCell({ top, width, height, src }: {
 }
 
 // ── TextCard ───────────────────────────────────────────────────────────────────
-function TextCard({ top, width, height, colorway, onProfileClick, isMobile, si }: {
+// Click is handled by the parent container's onPointerUp (tap detection).
+// data-si / data-bg allow the parent to identify which card was tapped.
+function TextCard({ top, width, height, colorway, isMobile, si }: {
   top: number; width: number; height: number
   colorway: Colorway
-  onProfileClick: (bg: string, si: number) => void
   isMobile: boolean
   si: number
 }) {
@@ -328,7 +379,8 @@ function TextCard({ top, width, height, colorway, onProfileClick, isMobile, si }
   return (
     <motion.div
       layoutId={`card-${si}`}
-      onClick={() => onProfileClick(colorway.bg, si)}
+      data-si={String(si)}
+      data-bg={colorway.bg}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -341,8 +393,7 @@ function TextCard({ top, width, height, colorway, onProfileClick, isMobile, si }
         overflow: 'hidden',
         filter: hovered ? 'brightness(0.92)' : 'none',
         transition: 'filter 0.18s ease',
-        pointerEvents: 'auto',
-        touchAction: 'pan-y',
+        touchAction: 'none',
       }}
     >
       <motion.h1
@@ -373,7 +424,7 @@ function TextCard({ top, width, height, colorway, onProfileClick, isMobile, si }
         }}>
           FLORAL ARTIST BASED IN SEOUL.
           <br />CRAFTING SEASONAL ARRANGEMENTS
-          <br />FOR WEDDINGS, EVENTS & EDITORIAL.
+          <br />FOR WEDDINGS, EVENTS &amp; EDITORIAL.
         </p>
         <p style={{
           fontFamily:    'var(--font-inter), system-ui, sans-serif',
