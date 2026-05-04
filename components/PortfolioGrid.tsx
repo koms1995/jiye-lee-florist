@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion, useMotionValue } from 'framer-motion'
+import { motion } from 'framer-motion'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const N_ROWS       = 5
@@ -19,9 +19,9 @@ const MOBILE_CELL_H_RATIO  = 0.37
 const MOBILE_COL_W_RATIO   = 0.641
 const IMG_OFFSETS           = [0, 5, 10, 14, 19] as const
 
-// Momentum decay: 0.92^60 ≈ 0.007 → stops within ~1 second
-const FRICTION = 0.92
-const MIN_VEL  = 0.3   // px/frame threshold to stop inertia
+// Momentum
+const FRICTION = 0.92   // velocity decay per frame
+const MIN_VEL  = 0.3    // stop threshold (px/frame)
 
 // ── Colorways ──────────────────────────────────────────────────────────────────
 type Colorway = { bg: string; name: string; text: string }
@@ -94,41 +94,50 @@ interface Props {
 export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const [dims, setDims]   = useState<Dims | null>(null)
   const [ready, setReady] = useState(false)
-  const dimsRef  = useRef<Dims | null>(null)
-  const initYRef = useRef(0)
 
-  // Virtual scroll accumulator — replaces window.scrollY (no 1M px body needed)
-  const accumRef = useRef(0)
+  const dimsRef        = useRef<Dims | null>(null)
+  const initYRef       = useRef(0)
+  const accumRef       = useRef(0)
+  const containerRef   = useRef<HTMLDivElement | null>(null)
+  const colRefs        = useRef<(HTMLDivElement | null)[]>(Array(N_COLS).fill(null))
 
-  // Inertia state
-  const inertia = useRef<{ vel: number; rafId: number | null }>({ vel: 0, rafId: null })
-
-  // Pointer tracking
-  const ptr = useRef<{ active: boolean; lastY: number; lastT: number }>({ active: false, lastY: 0, lastT: 0 })
-
-  // Drag vs tap detection (shared with TextCard via data attributes)
+  // Inertia
+  const inertia    = useRef<{ vel: number; rafId: number | null }>({ vel: 0, rafId: null })
   const isDragging = useRef(false)
 
-  // MotionValues — one per column, declared at top level (no loops)
-  const dispY0 = useMotionValue(0)
-  const dispY1 = useMotionValue(0)
-  const dispY2 = useMotionValue(0)
-  const dispY3 = useMotionValue(0)
-  const dispY4 = useMotionValue(0)
-  const dispYs = useRef([dispY0, dispY1, dispY2, dispY3, dispY4])
+  // RAF batching: prevents >1 DOM update per frame during fast input
+  const pendingRaf   = useRef<number | null>(null)
+  const pendingAccum = useRef(0)
 
-  // ── Column update ──────────────────────────────────────────────────────────
+  // Keep onProfileClick fresh inside stable native event handlers
+  const onProfileClickRef = useRef(onProfileClick)
+  useEffect(() => { onProfileClickRef.current = onProfileClick }, [onProfileClick])
+
+  // ── Core: direct DOM transform (no framer-motion overhead in scroll loop) ──
   function updateColumns(accum: number) {
     const d = dimsRef.current
     if (!d) return
     const wrapSize = N_COLORS * d.stripH
     const lo       = -(STRIP_COPIES - N_COLORS) * d.stripH
     for (let c = 0; c < d.nCols; c++) {
-      dispYs.current[c].set(wrappedY(initYRef.current - accum * d.speeds[c], lo, wrapSize))
+      const y  = wrappedY(initYRef.current - accum * d.speeds[c], lo, wrapSize)
+      const el = colRefs.current[c]
+      if (el) el.style.transform = `translateY(${y}px)`
     }
   }
 
-  // ── Inertia decay loop ─────────────────────────────────────────────────────
+  // Schedule one DOM update per animation frame (batches rapid input events)
+  function scheduleUpdate(accum: number) {
+    pendingAccum.current = accum
+    if (pendingRaf.current === null) {
+      pendingRaf.current = requestAnimationFrame(() => {
+        pendingRaf.current = null
+        updateColumns(pendingAccum.current)
+      })
+    }
+  }
+
+  // Inertia decay loop (runs in its own RAF — calls updateColumns directly, not scheduled)
   function startInertia() {
     const ia = inertia.current
     if (ia.rafId !== null) cancelAnimationFrame(ia.rafId)
@@ -142,6 +151,12 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
     ia.rafId = requestAnimationFrame(step)
   }
 
+  function stopInertia() {
+    const ia = inertia.current
+    if (ia.rafId !== null) { cancelAnimationFrame(ia.rafId); ia.rafId = null }
+    ia.vel = 0
+  }
+
   // ── Init + resize ──────────────────────────────────────────────────────────
   useEffect(() => {
     function init() {
@@ -150,7 +165,6 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
       const d = computeDims(w, h)
       dimsRef.current = d
 
-      // Position text card in viewport center at accum=0
       const midCopy    = Math.floor(STRIP_COPIES / 2)
       const textCenter = midCopy * d.stripH + TEXT_ROW * d.cellH + d.cellH / 2
       initYRef.current = Math.round(-(textCenter - h / 2))
@@ -165,71 +179,148 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
     return () => {
       window.removeEventListener('resize', init)
       if (inertia.current.rafId !== null) cancelAnimationFrame(inertia.current.rafId)
+      if (pendingRaf.current  !== null) cancelAnimationFrame(pendingRaf.current)
     }
   }, [])
 
-  // ── Pointer handlers ───────────────────────────────────────────────────────
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    const ia = inertia.current
-    if (ia.rafId !== null) { cancelAnimationFrame(ia.rafId); ia.rafId = null }
-    ia.vel = 0
-    ptr.current = { active: true, lastY: e.clientY, lastT: performance.now() }
-    isDragging.current = false
-    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
-  }
+  // ── Native event listeners ─────────────────────────────────────────────────
+  // Mounted once — reads only refs so stale-closure is not an issue.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
 
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const p = ptr.current
-    if (!p.active) return
-    const now = performance.now()
-    const dy  = e.clientY - p.lastY
-    const dt  = Math.max(now - p.lastT, 1)
+    const safeEl = el  // narrowed const; closures can't widen it back to null
 
-    if (Math.abs(e.clientY - ptr.current.lastY) > 3) isDragging.current = true
-
-    // velocity in px/frame at 60fps — used for inertia on release
-    inertia.current.vel = (dy / dt) * 16.67
-
-    p.lastY = e.clientY
-    p.lastT = now
-
-    // Drag UP (dy < 0) → accum increases → content scrolls up
-    accumRef.current -= dy
-    updateColumns(accumRef.current)
-  }
-
-  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    ptr.current.active = false
-
-    // Tap: small movement → find TextCard and fire profile click
-    if (!isDragging.current) {
-      let node = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-      while (node && node !== e.currentTarget) {
+    // Helper: walk DOM upward looking for a TextCard (has data-si)
+    function findCard(x: number, y: number, root: HTMLElement): { si: number; bg: string } | null {
+      let node = document.elementFromPoint(x, y) as HTMLElement | null
+      while (node && node !== root) {
         if (node.dataset.si !== undefined) {
-          onProfileClick(node.dataset.bg ?? '', parseInt(node.dataset.si))
-          return
+          return { si: parseInt(node.dataset.si), bg: node.dataset.bg ?? '' }
         }
         node = node.parentElement
       }
+      return null
     }
 
-    startInertia()
-  }
+    // ── Touch (mobile) ──────────────────────────────────────────────────────
+    let touchStartY = 0
+    let touchLastY  = 0
+    let touchLastT  = 0
+    let touching    = false
 
-  // Wheel: trackpad delivers natural momentum, mouse wheel gets mild inertia
-  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
-    const ia = inertia.current
-    if (ia.rafId !== null) { cancelAnimationFrame(ia.rafId); ia.rafId = null }
-    accumRef.current += e.deltaY
-    // Mouse wheel: add inertia kick. Trackpad: OS momentum handles it.
-    if (Math.abs(e.deltaY) > 30) {
-      ia.vel = e.deltaY * 0.25
-      startInertia()
-    } else {
-      ia.vel = 0
-      updateColumns(accumRef.current)
+    function onTouchStart(e: TouchEvent) {
+      touching    = true
+      touchStartY = touchLastY = e.touches[0].clientY
+      touchLastT  = performance.now()
+      isDragging.current = false
+      stopInertia()
     }
-  }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!touching) return
+      e.preventDefault()                     // blocks iOS rubber-band scroll
+      const t   = e.touches[0]
+      const now = performance.now()
+      const dy  = t.clientY - touchLastY
+      const dt  = Math.max(now - touchLastT, 1)
+
+      if (Math.abs(t.clientY - touchStartY) > 3) isDragging.current = true
+
+      inertia.current.vel = (dy / dt) * 16.67
+      touchLastY = t.clientY
+      touchLastT = now
+
+      accumRef.current -= dy
+      scheduleUpdate(accumRef.current)
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (!touching) return
+      touching = false
+      if (!isDragging.current) {
+        const t    = e.changedTouches[0]
+        const card = findCard(t.clientX, t.clientY, safeEl)
+        if (card) onProfileClickRef.current(card.bg, card.si)
+      } else {
+        startInertia()
+      }
+    }
+
+    // ── Mouse drag (desktop) ────────────────────────────────────────────────
+    let mouseDown   = false
+    let mouseLastY  = 0
+    let mouseLastT  = 0
+    let mouseStartY = 0
+
+    function onMouseDown(e: MouseEvent) {
+      mouseDown   = true
+      mouseStartY = mouseLastY = e.clientY
+      mouseLastT  = performance.now()
+      isDragging.current = false
+      stopInertia()
+    }
+
+    function onMouseMove(e: MouseEvent) {
+      if (!mouseDown) return
+      const now = performance.now()
+      const dy  = e.clientY - mouseLastY
+      const dt  = Math.max(now - mouseLastT, 1)
+
+      if (Math.abs(e.clientY - mouseStartY) > 3) isDragging.current = true
+
+      inertia.current.vel = (dy / dt) * 16.67
+      mouseLastY = e.clientY
+      mouseLastT = now
+
+      accumRef.current -= dy
+      scheduleUpdate(accumRef.current)
+    }
+
+    function onMouseUp(e: MouseEvent) {
+      if (!mouseDown) return
+      mouseDown = false
+      if (!isDragging.current) {
+        const card = findCard(e.clientX, e.clientY, safeEl)
+        if (card) onProfileClickRef.current(card.bg, card.si)
+      } else {
+        startInertia()
+      }
+    }
+
+    // ── Wheel (trackpad + mouse wheel) ──────────────────────────────────────
+    function onWheel(e: WheelEvent) {
+      stopInertia()
+      accumRef.current += e.deltaY
+      // Mouse wheel: large discrete delta → add mild inertia kick
+      if (Math.abs(e.deltaY) > 40) {
+        inertia.current.vel = e.deltaY * 0.15
+        startInertia()
+      } else {
+        scheduleUpdate(accumRef.current)
+      }
+    }
+
+    el.addEventListener('touchstart',  onTouchStart, { passive: true  })
+    el.addEventListener('touchmove',   onTouchMove,  { passive: false }) // needs preventDefault
+    el.addEventListener('touchend',    onTouchEnd,   { passive: true  })
+    el.addEventListener('touchcancel', onTouchEnd,   { passive: true  })
+    el.addEventListener('mousedown',   onMouseDown)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup',   onMouseUp)
+    el.addEventListener('wheel',       onWheel,      { passive: true  })
+
+    return () => {
+      el.removeEventListener('touchstart',  onTouchStart)
+      el.removeEventListener('touchmove',   onTouchMove)
+      el.removeEventListener('touchend',    onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
+      el.removeEventListener('mousedown',   onMouseDown)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup',   onMouseUp)
+      el.removeEventListener('wheel',       onWheel)
+    }
+  }, [ready]) // re-runs once ready→true so containerRef is actually in the DOM
 
   // ── Per-column image arrays ────────────────────────────────────────────────
   const colImages = useMemo((): string[][] => {
@@ -250,27 +341,24 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const { nCols, colW, cellH, stripH, textCol, isMobile, gridOffset } = dims
 
   return (
-    // Fixed overlay — no native scroll, pointer events drive the grid
+    // Full-viewport overlay — no native scroll; we drive it ourselves
     <div
+      ref={containerRef}
       className="fixed inset-0 select-none"
       style={{
         overflow:    'clip',
         opacity:     ready ? 1 : 0,
         transition:  'opacity 0.5s ease',
-        touchAction: 'none',   // prevent native scroll; we handle it ourselves
+        touchAction: 'none',   // disable native scroll; our touchmove handles it
         cursor:      'ns-resize',
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onWheel={onWheel}
     >
       {Array.from({ length: nCols }, (_, c) => (
-        <motion.div
+        // Regular div: transform set directly via colRefs — no framer-motion overhead
+        <div
           key={c}
+          ref={el => { colRefs.current[c] = el }}
           style={{
-            y:                  dispYs.current[c],
             position:           'absolute',
             left:               gridOffset + c * (colW + GAP),
             top:                0,
@@ -313,8 +401,8 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
                     )
                   }
 
-                  const imgIdx = (c === textCol && r > TEXT_ROW) ? r - 1 : r
-                  const imgs   = colImages[c]
+                  const imgIdx        = (c === textCol && r > TEXT_ROW) ? r - 1 : r
+                  const imgs          = colImages[c]
                   const IMGS_PER_STRIP = N_ROWS - 1
                   const src = (isMobile && c === textCol && imgs.length > N_ROWS)
                     ? imgs[(si * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
@@ -333,7 +421,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
               </div>
             )
           })}
-        </motion.div>
+        </div>
       ))}
     </div>
   )
@@ -363,8 +451,8 @@ function ImageCell({ top, width, height, src }: {
 }
 
 // ── TextCard ───────────────────────────────────────────────────────────────────
-// Click is handled by the parent container's onPointerUp (tap detection).
-// data-si / data-bg allow the parent to identify which card was tapped.
+// Tap detection is handled by the parent container's native event handlers.
+// data-si / data-bg let those handlers identify which card was tapped.
 function TextCard({ top, width, height, colorway, isMobile, si }: {
   top: number; width: number; height: number
   colorway: Colorway
