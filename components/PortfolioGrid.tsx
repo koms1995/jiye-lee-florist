@@ -7,7 +7,7 @@ import { motion } from 'framer-motion'
 const N_ROWS       = 5
 const N_COLORS     = 4
 const STRIP_COPIES = 12
-const GAP          = 2
+const GAP          = 15
 
 const N_COLS   = 5
 const SPEEDS   = [1.14, 0.88, 1.00, 0.88, 1.14] as const

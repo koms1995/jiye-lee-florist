@@ -21,7 +21,6 @@ interface Props {
 
 export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }: Props) {
   const vw       = typeof window !== 'undefined' ? window.innerWidth  : 1440
-  const vh       = typeof window !== 'undefined' ? window.innerHeight : 900
   const isMobile = vw < 768
 
   const cardLayoutId = activeStripSi !== null ? `card-${activeStripSi}` : undefined
@@ -68,19 +67,19 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
           </motion.button>
 
           {isMobile ? (
-            /* ── Mobile layout ── */
+            /* ── Mobile layout — proportions extracted from nrly.co mobile CSS ── */
             <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
 
-              {/* Name — shared element, top-left */}
-              <div style={{ position: 'absolute', top: '3.5rem', left: '1.75rem', zIndex: 10 }}>
+              {/* Name — nrly.co: 107.25px/390px=27.5vw, lineHeight 0.80, letterSpacing -0.04em */}
+              <div style={{ position: 'absolute', top: '1rem', left: '1.25rem', zIndex: 20 }}>
                 <motion.h2
                   layoutId={nameLayoutId}
                   transition={LAYOUT_TRANSITION}
                   style={{
                     fontFamily:    'var(--font-cormorant), Georgia, serif',
                     fontWeight:    300, fontStyle: 'italic',
-                    fontSize:      'clamp(4.5rem, 25vw, 7.5rem)',
-                    lineHeight:    0.82, letterSpacing: '-0.04em',
+                    fontSize:      '27.5vw',
+                    lineHeight:    0.80, letterSpacing: '-0.04em',
                     color:         '#D8A9AC',
                   }}
                 >
@@ -88,7 +87,17 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 </motion.h2>
               </div>
 
-              {/* Career titles — start at 37.5% from top, matching nrly.co reference */}
+              {/* Peony — right-biased, overlaps name bottom and roles (zIndex above roles) */}
+              <div style={{
+                position: 'absolute',
+                top: 0, bottom: '18%',
+                left: '40%', right: '-25%',
+                zIndex: 10,
+              }}>
+                <PeonyCanvas />
+              </div>
+
+              {/* Career titles — nrly.co: 31.2px/390px=8vw, lineHeight 1.10, letterSpacing -0.035em */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -96,29 +105,19 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 transition={{ delay: 0.30, duration: 0.25 }}
                 style={{
                   position: 'absolute',
-                  top: '37.5%', left: '1.75rem',
-                  zIndex: 10,
+                  top: '28%', left: '1.25rem',
+                  zIndex: 5,
                   fontFamily: 'var(--font-inter), system-ui, sans-serif',
-                  fontSize: '10px', letterSpacing: '0.04em',
-                  lineHeight: 1.7, color: '#2E1F1F', textTransform: 'uppercase',
+                  fontSize: '8vw', letterSpacing: '-0.035em',
+                  lineHeight: 1.10, color: '#2E1F1F',
                 }}
               >
-                <p>① FLORAL DESIGNER</p>
-                <p>② WEDDING &amp; EVENT SPECIALIST</p>
-                <p>③ BOTANICAL INSTALLATION ARTIST</p>
+                <p>① Floral Designer</p>
+                <p>② Wedding &amp; Event Specialist</p>
+                <p>③ Botanical Installation Artist</p>
               </motion.div>
 
-              {/* Peony — occupies top 5%→75%, dramatically overlapping text layers */}
-              <div style={{
-                position: 'absolute',
-                top: '5%', bottom: '25%',
-                left: '-8vw', right: '-8vw',
-                zIndex: 5,
-              }}>
-                <PeonyCanvas />
-              </div>
-
-              {/* Bio — above pill buttons */}
+              {/* Bio — nrly.co: 14.04px/390px=3.6vw, lineHeight 1.10, letterSpacing -0.025em */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -126,11 +125,11 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 transition={{ delay: 0.32, duration: 0.25 }}
                 style={{
                   position: 'absolute',
-                  bottom: '8.5rem', left: '1.75rem', right: '1.75rem',
-                  zIndex: 10,
+                  bottom: '7rem', left: '1.25rem', right: '1.25rem',
+                  zIndex: 20,
                   fontFamily: 'var(--font-inter), system-ui, sans-serif',
-                  fontSize: '10px', letterSpacing: '0.02em',
-                  lineHeight: 1.75, color: '#7A5C5C', textTransform: 'uppercase',
+                  fontSize: '3.6vw', letterSpacing: '-0.025em',
+                  lineHeight: 1.10, color: '#7A5C5C', textTransform: 'uppercase',
                 }}
               >
                 <p>FLORAL ARTIST BASED IN SEOUL, WORKING ACROSS WEDDINGS, EVENTS, AND EDITORIAL PROJECTS.</p>
@@ -140,11 +139,16 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
 
             </div>
           ) : (
-            /* ── Desktop layout ── */
-            <div style={{ position: 'relative', display: 'flex', height: '100%', width: '100%', alignItems: 'center' }}>
+            /* ── Desktop layout — visual left / text right, mirrors nrly.co ── */
+            <div style={{ position: 'relative', height: '100%', width: '100%' }}>
 
-              {/* Left: large name — shared element */}
-              <div style={{ flexShrink: 0, paddingLeft: '4rem', zIndex: 10, width: '42vw' }}>
+              {/* Peony: wider than 46vw so rotating petals aren't hard-clipped at the split */}
+              <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '62vw', zIndex: 5, pointerEvents: 'none' }}>
+                <PeonyCanvas />
+              </div>
+
+              {/* Name: top-left, overlaid on peony — matches nrly.co left: 5rem, top: 5rem */}
+              <div style={{ position: 'absolute', top: '5rem', left: '5rem', zIndex: 10 }}>
                 <motion.h2
                   layoutId={nameLayoutId}
                   transition={LAYOUT_TRANSITION}
@@ -159,39 +163,42 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 </motion.h2>
               </div>
 
-              {/* Center: career + bio — fade in */}
+              {/* Right: career + bio — starts at 46vw from left, 37.5vh from top */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ delay: 0.32, duration: 0.28 }}
-                style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '28rem' }}
+                style={{
+                  position: 'absolute', top: 0, bottom: 0,
+                  left: '46vw', right: '4.5rem',
+                  display: 'flex', flexDirection: 'column',
+                  justifyContent: 'flex-start',
+                  paddingTop: '37.5vh',
+                  zIndex: 10,
+                }}
               >
                 <div style={{
                   fontFamily: 'var(--font-inter), system-ui, sans-serif',
-                  fontSize: '20px', letterSpacing: '-0.5px',
-                  lineHeight: 1.5, color: '#2E1F1F', textTransform: 'uppercase',
+                  fontSize: '2.083vw', letterSpacing: '-0.035em',
+                  lineHeight: 1.1, color: '#2E1F1F', textTransform: 'uppercase',
                 }}>
                   <p>① FLORAL DESIGNER</p>
                   <p>② WEDDING &amp; EVENT SPECIALIST</p>
                   <p>③ BOTANICAL INSTALLATION ARTIST</p>
                 </div>
                 <div style={{
+                  marginTop: '2.35rem',
                   fontFamily: 'var(--font-inter), system-ui, sans-serif',
-                  fontSize: '20px', letterSpacing: '-0.5px',
-                  lineHeight: 1.6, color: '#7A5C5C', textTransform: 'uppercase',
-                  maxWidth: '24rem',
+                  fontSize: '0.9375vw', letterSpacing: '-0.025em',
+                  lineHeight: 1.1, color: '#7A5C5C', textTransform: 'uppercase',
+                  maxWidth: '25rem',
                 }}>
                   <p>FLORAL ARTIST BASED IN SEOUL, WORKING ACROSS WEDDINGS, EVENTS, AND EDITORIAL PROJECTS.</p>
                   <br />
                   <p>TRAINED IN KOREA AND EUROPE, WITH A FOCUS ON SEASONAL BOTANICALS AND SPATIAL STORYTELLING.</p>
                 </div>
               </motion.div>
-
-              {/* Right: 3D Peony — bleeds off right edge, width/right tuned to prevent clipping */}
-              <div style={{ position: 'absolute', top: 0, bottom: 0, right: '-10vw', width: '55vw', overflow: 'hidden' }}>
-                <PeonyCanvas />
-              </div>
 
             </div>
           )}
