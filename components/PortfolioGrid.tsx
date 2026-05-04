@@ -1,92 +1,40 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion, useMotionValue, useAnimationFrame } from 'framer-motion'
+import { motion, useMotionValue } from 'framer-motion'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const GAP          = 1
+const N_ROWS       = 5        // rows per column-strip (matches nrly.co 5-row page)
 const N_COLORS     = 4
-const STRIP_COPIES = N_COLORS * 5  // 20 copies, 5 full colorway cycles
-// Large scroll buffer — user can scroll ~125 full colorway loops before edge
+const STRIP_COPIES = 12       // must be multiple of N_COLORS; 12 = 3 color cycles, ample for wrap
 const SCROLL_START = 500_000
+const GAP          = 2        // px gap between every cell (row and column)
 
-// ── Colorways — all high-contrast pairs ───────────────────────────────────────
+// ── Column config ──────────────────────────────────────────────────────────────
+// nrly.co: 5 cols on both desktop and mobile; outer cols faster for parallax depth
+const N_COLS   = 5
+const SPEEDS   = [1.14, 0.88, 1.00, 0.88, 1.14] as const
+const TEXT_COL = 2   // center column
+const TEXT_ROW = 2   // middle row of 5
+
+// nrly.co cell height ratios (measured: 414/900 desktop, 312/844 mobile)
+const DESKTOP_CELL_H_RATIO = 0.46
+const MOBILE_CELL_H_RATIO  = 0.37
+
+// nrly.co mobile: each col ≈ 250px on 390px viewport → grid bleeds off both sides
+const MOBILE_COL_W_RATIO = 0.641
+
+// Image offsets: 5 cols — 5+5+4+5+5 = 24 images
+const IMG_OFFSETS = [0, 5, 10, 14, 19] as const
+
+// ── Colorways ──────────────────────────────────────────────────────────────────
 type Colorway = { bg: string; name: string; text: string }
-
 const COLORWAYS: Colorway[] = [
-  { bg: '#C9A99A', name: '#2E1F1F', text: '#2E1F1F' },  // dusty rose + dark
-  { bg: '#2E1F1F', name: '#EDE0D4', text: '#EDE0D4' },  // dark brown + cream
-  { bg: '#F5F0EB', name: '#3D2B2B', text: '#3D2B2B' },  // parchment + dark
-  { bg: '#7A5C5C', name: '#F5F0EB', text: '#F5F0EB' },  // warm plum + parchment
+  { bg: '#C9A99A', name: '#2E1F1F', text: '#2E1F1F' },
+  { bg: '#2E1F1F', name: '#EDE0D4', text: '#EDE0D4' },
+  { bg: '#F5F0EB', name: '#3D2B2B', text: '#3D2B2B' },
+  { bg: '#7A5C5C', name: '#F5F0EB', text: '#F5F0EB' },
 ]
-
-// ── Layout specs ───────────────────────────────────────────────────────────────
-type CellSpec = { col: number; row: number; colSpan: number; type: 'image' | 'text' }
-
-const DESKTOP_LAYOUT: CellSpec[] = [
-  { col:0, row:0, colSpan:1, type:'image' },
-  { col:1, row:0, colSpan:2, type:'image' },
-  { col:3, row:0, colSpan:1, type:'image' },
-  { col:4, row:0, colSpan:1, type:'image' },
-  { col:0, row:1, colSpan:1, type:'image' },
-  { col:1, row:1, colSpan:1, type:'image' },
-  { col:2, row:1, colSpan:1, type:'text'  },
-  { col:3, row:1, colSpan:1, type:'image' },
-  { col:4, row:1, colSpan:1, type:'image' },
-  { col:0, row:2, colSpan:1, type:'image' },
-  { col:1, row:2, colSpan:1, type:'image' },
-  { col:2, row:2, colSpan:2, type:'image' },
-  { col:4, row:2, colSpan:1, type:'image' },
-]
-
-const MOBILE_LAYOUT: CellSpec[] = [
-  { col:0, row:0, colSpan:1, type:'image' },
-  { col:1, row:0, colSpan:1, type:'image' },
-  { col:2, row:0, colSpan:1, type:'image' },
-  { col:3, row:0, colSpan:1, type:'image' },
-  { col:4, row:0, colSpan:1, type:'image' },
-  { col:0, row:1, colSpan:1, type:'image' },
-  { col:1, row:1, colSpan:1, type:'image' },
-  { col:2, row:1, colSpan:1, type:'text'  },
-  { col:3, row:1, colSpan:1, type:'image' },
-  { col:4, row:1, colSpan:1, type:'image' },
-  { col:0, row:2, colSpan:1, type:'image' },
-  { col:1, row:2, colSpan:1, type:'image' },
-  { col:2, row:2, colSpan:1, type:'image' },
-  { col:3, row:2, colSpan:1, type:'image' },
-  { col:4, row:2, colSpan:1, type:'image' },
-]
-
-// ── Dims ───────────────────────────────────────────────────────────────────────
-type Dims = {
-  unitW:      number
-  shortH:     number
-  tallH:      number
-  stripW:     number
-  stripH:     number
-  xOffset:    number
-  rowTops:    readonly [number, number, number]
-  rowHeights: readonly [number, number, number]
-  layout:     CellSpec[]
-  isMobile:   boolean
-}
-
-function computeDims(w: number, h: number): Dims {
-  const isMobile = w < 640
-  const unitW    = isMobile ? Math.round(w * 0.641) : Math.round(w / 5)
-  const stripW   = 5 * unitW
-  const shortH   = Math.round(h * 0.26)
-  const tallH    = Math.round(h * 0.45)
-  const stripH   = 2 * shortH + tallH
-  const xOffset  = isMobile ? Math.round(w / 2 - 2.5 * unitW) : 0
-  const layout   = isMobile ? MOBILE_LAYOUT : DESKTOP_LAYOUT
-
-  return {
-    unitW, stripW, shortH, tallH, stripH, xOffset, layout, isMobile,
-    rowTops:    [0, shortH, shortH + tallH],
-    rowHeights: [shortH, tallH, shortH],
-  }
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function seededShuffle<T>(arr: T[], seed: number): T[] {
@@ -100,209 +48,248 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
   return a
 }
 
-// ── Cell render type ───────────────────────────────────────────────────────────
-type CellRender = {
-  key: string
-  left: number; top: number; width: number; height: number
-  type: 'image' | 'text'
-  src?: string
+// ── Dims ───────────────────────────────────────────────────────────────────────
+type Dims = {
+  nCols:      number
+  colW:       number
+  cellH:      number
+  stripH:     number
+  textCol:    number
+  speeds:     readonly number[]
+  imgOffsets: readonly number[]
+  isMobile:   boolean
+  gridOffset: number   // left shift so center col (col 2) sits in viewport center on mobile
+}
+
+function computeDims(w: number, h: number): Dims {
+  const isMobile = w < 640
+  const cellH    = Math.round(h * (isMobile ? MOBILE_CELL_H_RATIO : DESKTOP_CELL_H_RATIO))
+  // Trailing GAP after last row becomes the inter-strip gap — keeps wrap seamless
+  const stripH   = N_ROWS * (cellH + GAP)
+
+  let colW: number, gridOffset: number
+  if (isMobile) {
+    colW       = Math.round(w * MOBILE_COL_W_RATIO)
+    gridOffset = Math.round((w - (N_COLS * colW + (N_COLS - 1) * GAP)) / 2)
+  } else {
+    colW       = Math.round((w - (N_COLS - 1) * GAP) / N_COLS)
+    gridOffset = 0
+  }
+
+  return {
+    nCols: N_COLS, colW, cellH, stripH,
+    textCol:    TEXT_COL,
+    speeds:     SPEEDS,
+    imgOffsets: IMG_OFFSETS,
+    isMobile,
+    gridOffset,
+  }
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-interface Props { images: string[]; onProfileClick: () => void }
+interface Props { images: string[]; onProfileClick: (rect: DOMRect, bg: string) => void }
 
 export default function PortfolioGrid({ images, onProfileClick }: Props) {
-  const stripHRef = useRef(0)
-  const initYRef  = useRef(0)
-  const [dims, setDims] = useState<Dims | null>(null)
+  const [dims, setDims]   = useState<Dims | null>(null)
   const [ready, setReady] = useState(false)
+  const dimsRef  = useRef<Dims | null>(null)
+  const initYRef = useRef(0)
 
-  const rawY  = useMotionValue(0)
-  const dispY = useMotionValue(0)
+  // 5 MotionValues — one per column. Declared at top level (hooks can't be in loops).
+  const dispY0 = useMotionValue(0)
+  const dispY1 = useMotionValue(0)
+  const dispY2 = useMotionValue(0)
+  const dispY3 = useMotionValue(0)
+  const dispY4 = useMotionValue(0)
+  const dispYs = useRef([dispY0, dispY1, dispY2, dispY3, dispY4])
 
-  // ── Init dims + scroll position ───────────────────────────────────────────────
+  // ── Setup: scroll plumbing, init, resize ────────────────────────────────────
   useEffect(() => {
     if (typeof history !== 'undefined') history.scrollRestoration = 'manual'
-    // Prevent pull-to-refresh / overscroll bounce at boundaries
+
+    document.documentElement.style.overflow = 'visible'
+    document.documentElement.style.height   = 'auto'
+    document.body.style.overflow             = 'visible'
+    document.body.style.height               = 'auto'
+    document.body.style.minHeight            = `${SCROLL_START * 2}px`
     document.documentElement.style.overscrollBehavior = 'none'
     document.body.style.overscrollBehavior             = 'none'
+
+    let rafId: number | null = null
+
+    // Modular wrap: brings y into [lo, lo+wrapSize) without while-loops.
+    // wrapSize = N_COLORS * stripH → colorway index is preserved across teleports.
+    function wrappedY(y: number, lo: number, wrapSize: number): number {
+      return ((y - lo) % wrapSize + wrapSize) % wrapSize + lo
+    }
+
+    function updateColumns() {
+      rafId = null
+      const d = dimsRef.current
+      if (!d) return
+      const delta    = window.scrollY - SCROLL_START
+      const initY    = initYRef.current
+      const wrapSize = N_COLORS * d.stripH
+      const lo       = -(STRIP_COPIES - N_COLORS) * d.stripH
+      for (let c = 0; c < d.nCols; c++) {
+        dispYs.current[c].set(wrappedY(initY - delta * d.speeds[c], lo, wrapSize))
+      }
+    }
+
+    function onScroll() {
+      // Batch multiple scroll events into one RAF — avoids redundant updates.
+      if (rafId === null) rafId = requestAnimationFrame(updateColumns)
+    }
 
     function init() {
       const w = window.innerWidth
       const h = window.innerHeight
       const d = computeDims(w, h)
-      stripHRef.current = d.stripH
+      dimsRef.current = d
 
-      const cardCenterY = d.shortH + d.tallH / 2
-      const midCopy     = Math.floor(STRIP_COPIES / 2)
-      const initY = Math.round(-(midCopy * d.stripH + cardCenterY - h / 2))
-      initYRef.current = initY
+      const midCopy    = Math.floor(STRIP_COPIES / 2)
+      const textCenter = midCopy * d.stripH + TEXT_ROW * d.cellH + d.cellH / 2
+      initYRef.current = Math.round(-(textCenter - h / 2))
 
-      rawY.set(initY)
-      dispY.set(initY)
+      // Apply initial positions directly (no scroll event yet)
+      updateColumns()
       setDims(d)
       setReady(true)
     }
 
     init()
-    // Scroll track div is already in DOM (rendered below), so body IS scrollable here
     window.scrollTo(0, SCROLL_START)
-
+    window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', init)
+
     return () => {
+      window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', init)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      document.documentElement.style.overflow = ''
+      document.documentElement.style.height   = ''
+      document.body.style.overflow             = ''
+      document.body.style.height               = ''
+      document.body.style.minHeight            = ''
       document.documentElement.style.overscrollBehavior = ''
       document.body.style.overscrollBehavior             = ''
     }
-  }, [rawY, dispY])
+  }, [])
 
-  // ── Native scroll → rawY ──────────────────────────────────────────────────────
-  useEffect(() => {
-    function onScroll() {
-      // scrollY increases when scrolling down → rawY decreases → strips move up
-      rawY.set(initYRef.current - (window.scrollY - SCROLL_START))
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [rawY])
-
-  // ── Colorway-safe wrap + direct visual sync ───────────────────────────────────
-  useAnimationFrame(() => {
-    const stripH = stripHRef.current
-    if (!stripH) return
-
-    let ry = rawY.get()
-    const wrapSize = N_COLORS * stripH
-    const hi = -N_COLORS * stripH
-    const lo = -(STRIP_COPIES - N_COLORS) * stripH
-
-    // Seamless wrap: strip[n] and strip[n+N_COLORS] are visually identical
-    while (ry > hi) { ry -= wrapSize; rawY.set(ry); dispY.set(dispY.get() - wrapSize) }
-    while (ry < lo) { ry += wrapSize; rawY.set(ry); dispY.set(dispY.get() + wrapSize) }
-
-    // Direct 1:1 — OS handles all scroll physics (trackpad momentum, iOS inertia)
-    dispY.set(ry)
-  })
-
-  // ── Cells ─────────────────────────────────────────────────────────────────────
-  const cells = useMemo((): CellRender[] => {
+  // ── Per-column image arrays ────────────────────────────────────────────────
+  // Desktop: offsets [0,5,10,14,19] → 5+5+4+5+5 = 24 images, all used
+  // Mobile:  col 2 (center, only fully-visible col) gets all 24 images so every
+  //          image is eventually seen as the user scrolls; side cols use offsets.
+  const colImages = useMemo((): string[][] => {
     if (!dims || images.length === 0) return []
-    const { unitW, rowTops, rowHeights, layout } = dims
     const shuffled = seededShuffle(images, 42)
-    let imgIdx = 0
-    return layout.map((spec, si) => {
-      const left   = spec.col * unitW + GAP
-      const top    = rowTops[spec.row] + GAP
-      const width  = spec.colSpan * unitW - GAP * 2
-      const height = rowHeights[spec.row] - GAP * 2
-      if (spec.type === 'text') {
-        return { key: `t${si}`, left, top, width, height, type: 'text' as const }
-      }
-      const c: CellRender = {
-        key: `i${si}`, left, top, width, height,
-        type: 'image' as const,
-        src:  shuffled[imgIdx % shuffled.length],
-      }
-      imgIdx++
-      return c
+    const { nCols, imgOffsets, textCol, isMobile } = dims
+
+    return Array.from({ length: nCols }, (_, c) => {
+      if (isMobile && c === textCol) return shuffled   // all 24 cycle through center col
+      const off = imgOffsets[c]
+      return Array.from({ length: N_ROWS }, (_, i) =>
+        shuffled[(off + i) % shuffled.length]
+      )
     })
   }, [dims, images])
 
-  const { stripW = 0, stripH = 0, xOffset = 0, isMobile = false } = dims ?? {}
+  if (!dims) return null
+  const { nCols, colW, cellH, stripH, textCol, isMobile, gridOffset } = dims
 
   return (
-    <>
-      {/*
-        Scroll track — always present from initial render so document.body IS
-        scrollable before any JS effects run. window.scrollTo(0, SCROLL_START)
-        needs this to already exist in the DOM.
-      */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '1px',
-          height: SCROLL_START * 2,
-          pointerEvents: 'none',
-        }}
-      />
+    // Fixed visual layer — pointer-events none so scroll events reach document;
+    // touch-action pan-y explicitly allows iOS vertical touch-scroll.
+    <div
+      className="fixed inset-0 select-none"
+      style={{
+        overflow: 'clip',
+        opacity: ready ? 1 : 0,
+        transition: 'opacity 0.5s ease',
+        pointerEvents: 'none',
+        touchAction: 'pan-y',
+      }}
+    >
+      {Array.from({ length: nCols }, (_, c) => (
+        <motion.div
+          key={c}
+          style={{
+            y:          dispYs.current[c],
+            position:   'absolute',
+            left:       gridOffset + c * (colW + GAP),
+            top:        0,
+            width:      colW,
+            height:     STRIP_COPIES * stripH,
+            willChange: 'transform',
+          }}
+        >
+          {Array.from({ length: STRIP_COPIES }, (_, si) => {
+            const colorway = COLORWAYS[si % N_COLORS]
+            return (
+              <div
+                key={si}
+                style={{
+                  position:        'absolute',
+                  top:             si * stripH,
+                  left:            0,
+                  width:           colW,
+                  height:          stripH,
+                  backgroundColor: colorway.bg,
+                  contain:         'layout paint',
+                }}
+              >
+                {Array.from({ length: N_ROWS }, (_, r) => {
+                  const isText = c === textCol && r === TEXT_ROW
+                  const top    = r * (cellH + GAP)
 
-      {/*
-        Fixed visual layer.
-        pointer-events:none → all events fall through to document scroll.
-        touch-action:pan-y  → iOS honours vertical touch-scroll on this element.
-        Interactive children (TextCard) override pointer-events back to auto.
-      */}
-      <div
-        className="fixed inset-0 select-none"
-        style={{
-          overflow: 'clip',
-          opacity: ready ? 1 : 0,
-          transition: 'opacity 0.5s ease',
-          pointerEvents: 'none',
-          touchAction: 'pan-y',
-        }}
-      >
-        <div style={{ position: 'absolute', left: xOffset, top: 0 }}>
-          <motion.div
-            style={{
-              y: dispY,
-              width:  stripW,
-              height: STRIP_COPIES * stripH,
-              position: 'relative',
-              willChange: 'transform',
-            }}
-          >
-            {Array.from({ length: STRIP_COPIES }, (_, ci) => {
-              const colorway = COLORWAYS[ci % N_COLORS]
-              return (
-                <div
-                  key={ci}
-                  style={{
-                    position: 'absolute',
-                    top:    ci * stripH,
-                    left:   0,
-                    width:  stripW,
-                    height: stripH,
-                  }}
-                >
-                  {cells.map(cell =>
-                    cell.type === 'text' ? (
+                  if (isText) {
+                    return (
                       <TextCard
-                        key={cell.key}
-                        left={cell.left} top={cell.top}
-                        width={cell.width} height={cell.height}
-                        onProfileClick={onProfileClick}
+                        key={r}
+                        top={top}
+                        width={colW}
+                        height={cellH}
                         colorway={colorway}
+                        onProfileClick={onProfileClick}
                         isMobile={isMobile}
                       />
-                    ) : (
-                      <ImageCell
-                        key={cell.key}
-                        left={cell.left} top={cell.top}
-                        width={cell.width} height={cell.height}
-                        src={cell.src!}
-                      />
                     )
-                  )}
-                </div>
-              )
-            })}
-          </motion.div>
-        </div>
-      </div>
-    </>
+                  }
+
+                  // Map row index → image array index, skipping text-card slot
+                  const imgIdx = (c === textCol && r > TEXT_ROW) ? r - 1 : r
+                  const imgs   = colImages[c]
+                  // Mobile center col: advance by strip so all 24 images cycle through
+                  const IMGS_PER_STRIP = N_ROWS - 1
+                  const src = (isMobile && c === textCol && imgs.length > N_ROWS)
+                    ? imgs[(si * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
+                    : imgs?.[imgIdx % (imgs?.length || 1)] ?? ''
+
+                  return (
+                    <ImageCell
+                      key={r}
+                      top={top}
+                      width={colW}
+                      height={cellH}
+                      src={src}
+                    />
+                  )
+                })}
+              </div>
+            )
+          })}
+        </motion.div>
+      ))}
+    </div>
   )
 }
 
 // ── ImageCell ──────────────────────────────────────────────────────────────────
-function ImageCell({ left, top, width, height, src }: {
-  left: number; top: number; width: number; height: number; src: string
+function ImageCell({ top, width, height, src }: {
+  top: number; width: number; height: number; src: string
 }) {
   return (
-    <div style={{ position: 'absolute', left, top, width, height, overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', top, left: 0, width, height, overflow: 'hidden' }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -319,24 +306,26 @@ function ImageCell({ left, top, width, height, src }: {
 }
 
 // ── TextCard ───────────────────────────────────────────────────────────────────
-function TextCard({ left, top, width, height, onProfileClick, colorway, isMobile }: {
-  left: number; top: number; width: number; height: number
-  onProfileClick: () => void
+function TextCard({ top, width, height, colorway, onProfileClick, isMobile }: {
+  top: number; width: number; height: number
   colorway: Colorway
+  onProfileClick: (rect: DOMRect, bg: string) => void
   isMobile: boolean
 }) {
   const [hovered, setHovered] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
   const nameFontSize = Math.round(width * 0.38)
   const padV = Math.round(height * 0.09)
   const padH = Math.round(width * 0.10)
 
   return (
     <div
-      onClick={onProfileClick}
+      ref={ref}
+      onClick={() => ref.current && onProfileClick(ref.current.getBoundingClientRect(), colorway.bg)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        position: 'absolute', left, top, width, height,
+        position: 'absolute', top, left: 0, width, height,
         backgroundColor: colorway.bg,
         cursor: 'pointer',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
@@ -345,48 +334,44 @@ function TextCard({ left, top, width, height, onProfileClick, colorway, isMobile
         overflow: 'hidden',
         filter: hovered ? 'brightness(0.92)' : 'none',
         transition: 'filter 0.18s ease',
-        // Restore pointer events for this interactive card (parent has none)
         pointerEvents: 'auto',
-        // Allow touch scrolling through the card (vertical swipe still scrolls page)
         touchAction: 'pan-y',
       }}
     >
       <h1
         style={{
-          fontFamily: 'var(--font-cormorant), Georgia, serif',
-          fontWeight: 300,
-          fontStyle: 'italic',
-          fontSize: nameFontSize,
-          lineHeight: 0.85,
+          fontFamily:    'var(--font-cormorant), Georgia, serif',
+          fontWeight:    300,
+          fontStyle:     'italic',
+          fontSize:      nameFontSize,
+          lineHeight:    0.85,
           letterSpacing: '-0.04em',
-          color: colorway.name,
+          color:         colorway.name,
           pointerEvents: 'none',
         }}
       >
-        Jiye
-        <br />
-        Lee
+        Jiye<br />Lee
       </h1>
 
       <div style={{ pointerEvents: 'none' }}>
         <p style={{
-          fontFamily: 'var(--font-inter), system-ui, sans-serif',
-          fontSize: isMobile ? '10px' : '11px',
+          fontFamily:    'var(--font-inter), system-ui, sans-serif',
+          fontSize:      isMobile ? '10px' : '11px',
           letterSpacing: '0.02em',
-          lineHeight: 1.4,
-          color: colorway.text,
+          lineHeight:    1.4,
+          color:         colorway.text,
           textTransform: 'uppercase',
-          marginBottom: '0.6rem',
+          marginBottom:  '0.6rem',
         }}>
           FLORAL ARTIST BASED IN SEOUL.
           <br />CRAFTING SEASONAL ARRANGEMENTS
           <br />FOR WEDDINGS, EVENTS & EDITORIAL.
         </p>
         <p style={{
-          fontFamily: 'var(--font-inter), system-ui, sans-serif',
-          fontSize: isMobile ? '10px' : '11px',
+          fontFamily:    'var(--font-inter), system-ui, sans-serif',
+          fontSize:      isMobile ? '10px' : '11px',
           letterSpacing: '0.06em',
-          color: colorway.text,
+          color:         colorway.text,
           textTransform: 'uppercase',
         }}>
           PROFILE ↗

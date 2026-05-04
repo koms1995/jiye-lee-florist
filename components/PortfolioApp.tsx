@@ -10,22 +10,27 @@ interface Props { images: string[] }
 
 export default function PortfolioApp({ images }: Props) {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [profileRect, setProfileRect] = useState<DOMRect | null>(null)
+  const [profileBg,   setProfileBg]   = useState('#EDE0D4')
+
+  function handleProfileClick(rect: DOMRect, bg: string) {
+    setProfileRect(rect)
+    setProfileBg(bg)
+    setIsProfileOpen(true)
+  }
 
   return (
     <>
-      {/* Layer 1: 5×5 draggable image grid */}
-      <PortfolioGrid images={images} onProfileClick={() => setIsProfileOpen(true)} />
+      <PortfolioGrid images={images} onProfileClick={handleProfileClick} />
 
-      {/* Layer 2: Profile fullscreen modal */}
       <ProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+        fromRect={profileRect}
+        fromBg={profileBg}
       />
 
-      {/* Layer 4: Grain texture overlay */}
       <GrainCanvas />
-
-      {/* Always-on pill buttons */}
       <PillButtons />
     </>
   )
