@@ -276,7 +276,7 @@ function Peony() {
 export default function PeonyCanvas() {
   return (
     <Canvas
-      camera={{ position: [0, 0.30, 2.45], fov: 50 }}
+      camera={{ position: [0, 0.15, 3.5], fov: 50 }}
       style={{ width: '100%', height: '100%', background: 'transparent' }}
       gl={{
         alpha:               true,

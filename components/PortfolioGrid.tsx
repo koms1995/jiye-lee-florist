@@ -87,7 +87,10 @@ function computeDims(w: number, h: number): Dims {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-interface Props { images: string[]; onProfileClick: (rect: DOMRect, bg: string) => void }
+interface Props {
+  images: string[]
+  onProfileClick: (bg: string, si: number) => void
+}
 
 export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const [dims, setDims]   = useState<Dims | null>(null)
@@ -214,13 +217,14 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
         <motion.div
           key={c}
           style={{
-            y:          dispYs.current[c],
-            position:   'absolute',
-            left:       gridOffset + c * (colW + GAP),
-            top:        0,
-            width:      colW,
-            height:     STRIP_COPIES * stripH,
-            willChange: 'transform',
+            y:                dispYs.current[c],
+            position:         'absolute',
+            left:             gridOffset + c * (colW + GAP),
+            top:              0,
+            width:            colW,
+            height:           STRIP_COPIES * stripH,
+            willChange:       'transform',
+            backfaceVisibility: 'hidden',
           }}
         >
           {Array.from({ length: STRIP_COPIES }, (_, si) => {
@@ -252,6 +256,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
                         colorway={colorway}
                         onProfileClick={onProfileClick}
                         isMobile={isMobile}
+                        si={si}
                       />
                     )
                   }
@@ -295,6 +300,8 @@ function ImageCell({ top, width, height, src }: {
         src={src}
         alt=""
         draggable={false}
+        loading="lazy"
+        decoding="async"
         style={{
           width: '100%', height: '100%',
           objectFit: 'cover', display: 'block',
@@ -306,22 +313,22 @@ function ImageCell({ top, width, height, src }: {
 }
 
 // ── TextCard ───────────────────────────────────────────────────────────────────
-function TextCard({ top, width, height, colorway, onProfileClick, isMobile }: {
+function TextCard({ top, width, height, colorway, onProfileClick, isMobile, si }: {
   top: number; width: number; height: number
   colorway: Colorway
-  onProfileClick: (rect: DOMRect, bg: string) => void
+  onProfileClick: (bg: string, si: number) => void
   isMobile: boolean
+  si: number
 }) {
   const [hovered, setHovered] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
   const nameFontSize = Math.round(width * 0.38)
   const padV = Math.round(height * 0.09)
   const padH = Math.round(width * 0.10)
 
   return (
-    <div
-      ref={ref}
-      onClick={() => ref.current && onProfileClick(ref.current.getBoundingClientRect(), colorway.bg)}
+    <motion.div
+      layoutId={`card-${si}`}
+      onClick={() => onProfileClick(colorway.bg, si)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -338,7 +345,8 @@ function TextCard({ top, width, height, colorway, onProfileClick, isMobile }: {
         touchAction: 'pan-y',
       }}
     >
-      <h1
+      <motion.h1
+        layoutId={`name-${si}`}
         style={{
           fontFamily:    'var(--font-cormorant), Georgia, serif',
           fontWeight:    300,
@@ -351,7 +359,7 @@ function TextCard({ top, width, height, colorway, onProfileClick, isMobile }: {
         }}
       >
         Jiye<br />Lee
-      </h1>
+      </motion.h1>
 
       <div style={{ pointerEvents: 'none' }}>
         <p style={{
@@ -377,6 +385,6 @@ function TextCard({ top, width, height, colorway, onProfileClick, isMobile }: {
           PROFILE ↗
         </p>
       </div>
-    </div>
+    </motion.div>
   )
 }
