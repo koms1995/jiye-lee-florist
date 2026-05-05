@@ -109,19 +109,18 @@ function BioBlock({ isMobile }: { isMobile: boolean }) {
       }}
       exit={{ opacity: 0, transition: { duration: 0.18 } }}
       style={{
-        position:      'absolute',
         pointerEvents: 'none',
         zIndex:        6,
         ...(isMobile
-          // Mobile: more breathing room between the name and the roles —
-          // 3rem buffer below the name height — for the balanced rhythm
-          // (name → space → roles → space → career below the hero).
+          // Mobile: in-flow (no absolute) so its parent (the hero block)
+          // auto-sizes to include this content. Avoids vh-based hero height
+          // overflowing on iOS Safari where the URL bar shrinks innerHeight.
           ? {
-              top:   'calc(1.25rem + 36vw + 3rem)',
-              left:  '1.5rem',
-              right: '1.5rem',
+              position: 'relative',
+              padding:  '0 1.5rem',
             }
           : {
+              position: 'absolute',
               top:      'calc(5rem + 24vw + 2.4rem)',
               left:     '5rem',
               maxWidth: 'min(38vw, 540px)',
@@ -326,11 +325,13 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                   pointerEvents: 'auto',
                 }}
               >
-                {/* Top hero area — shortened from 58vh → 53vh so the career
-                    section rides higher and the rhythm feels tighter.
-                    Name + bio still sit absolute-positioned within the hero,
-                    layered above the fixed PeonyCanvas at z=902. */}
-                <div style={{ position: 'relative', height: '53vh' }}>
+                {/* Top hero area — auto-sizes to fit name (absolute) + bio
+                    (in flow). Avoids vh-based heights that misbehave on iOS
+                    Safari (URL bar makes innerHeight smaller than expected,
+                    so a fixed 53vh would leave the bio overflowing into the
+                    career section). The spacer below reserves vertical room
+                    for the absolutely-positioned name. */}
+                <div style={{ position: 'relative' }}>
                   <h2
                     style={{
                       position:      'absolute',
@@ -350,12 +351,17 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                     Jiye<br />Lee
                   </h2>
 
-                  {/* Bio inside hero — absolute-positioned so it overlaps
-                      the tulip canvas. Editorial layered composition. */}
+                  {/* Spacer — reserves vertical space for the absolute-
+                      positioned name, then the bio flows naturally below. */}
+                  <div
+                    aria-hidden
+                    style={{ height: 'calc(1.25rem + 36vw + 3rem)' }}
+                  />
+
                   <BioBlock isMobile />
                 </div>
 
-                <div style={{ padding: '1.25rem 1.5rem 7rem' }}>
+                <div style={{ padding: '2rem 1.5rem 7rem' }}>
                   <CareerSections />
                 </div>
               </div>

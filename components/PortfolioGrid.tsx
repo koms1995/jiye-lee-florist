@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const N_ROWS       = 5
@@ -15,8 +16,9 @@ const TEXT_COL = 2
 const TEXT_ROW = 2
 
 const DESKTOP_CELL_H_RATIO = 0.46
-const MOBILE_CELL_H_RATIO  = 0.37
-const MOBILE_COL_W_RATIO   = 0.641
+const MOBILE_CELL_ASPECT   = 1.30   // cellH / colW — keeps cells portrait
+const MOBILE_COL_W_RATIO   = 0.641  //  regardless of viewport height (which
+                                    //  shrinks on iOS Safari with URL bar).
 const IMG_OFFSETS           = [0, 5, 10, 14, 19] as const
 
 // Momentum
@@ -63,17 +65,22 @@ type Dims = {
 
 function computeDims(w: number, h: number): Dims {
   const isMobile = w < 640
-  const cellH    = Math.round(h * (isMobile ? MOBILE_CELL_H_RATIO : DESKTOP_CELL_H_RATIO))
-  const stripH   = N_ROWS * (cellH + GAP)
 
-  let colW: number, gridOffset: number
+  let colW: number, cellH: number, gridOffset: number
   if (isMobile) {
+    // Derive cellH from colW (NOT viewport height). iOS Safari's innerHeight
+    // shrinks when the URL bar is visible, which would make cells more square.
+    // Fixed aspect ratio guarantees portrait cells across all environments.
     colW       = Math.round(w * MOBILE_COL_W_RATIO)
+    cellH      = Math.round(colW * MOBILE_CELL_ASPECT)
     gridOffset = Math.round((w - (N_COLS * colW + (N_COLS - 1) * GAP)) / 2)
   } else {
     colW       = Math.round((w - (N_COLS - 1) * GAP) / N_COLS)
+    cellH      = Math.round(h * DESKTOP_CELL_H_RATIO)
     gridOffset = 0
   }
+
+  const stripH = N_ROWS * (cellH + GAP)
 
   return {
     nCols: N_COLS, colW, cellH, stripH,
@@ -469,9 +476,9 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
 
 // ── ImageCell ──────────────────────────────────────────────────────────────────
 // motion.div + layoutId enables shared-layout animation to the lightbox.
-// data-img-id / data-img-src let the parent's native click handlers route
-// taps to the lightbox without re-introducing React onClick (which would fire
-// during drags). pointerEvents:auto on the cell so elementFromPoint hits it.
+// next/image gives Vercel-side image optimization: the source 1800×3000
+// JPEGs get resized + served as WebP/AVIF responsive variants, dropping
+// payload from megabytes per image to ~50KB per cell.
 function ImageCell({ top, width, height, src, layoutId }: {
   top: number; width: number; height: number; src: string; layoutId: string
 }) {
@@ -482,25 +489,26 @@ function ImageCell({ top, width, height, src, layoutId }: {
       data-img-src={src}
       transition={{ duration: 0.6, ease: [0.43, 0.13, 0.23, 0.96] }}
       style={{
-        position:     'absolute',
-        top, left:    0,
+        position:      'absolute',
+        top, left:     0,
         width, height,
-        overflow:     'hidden',
-        pointerEvents:'auto',
-        cursor:       'zoom-in',
+        overflow:      'hidden',
+        pointerEvents: 'auto',
+        cursor:        'zoom-in',
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={src}
         alt=""
+        fill
+        // Tell the browser/Next which size variant to fetch for each viewport
+        sizes="(max-width: 640px) 250px, 280px"
+        quality={70}
         draggable={false}
-        loading="lazy"
-        decoding="async"
         style={{
-          width: '100%', height: '100%',
-          objectFit: 'cover', display: 'block',
-          pointerEvents: 'none', userSelect: 'none',
+          objectFit:     'cover',
+          pointerEvents: 'none',
+          userSelect:    'none',
         }}
       />
     </motion.div>
