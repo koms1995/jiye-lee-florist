@@ -124,6 +124,51 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
   const onImageClickRef = useRef(onImageClick)
   useEffect(() => { onImageClickRef.current = onImageClick }, [onImageClick])
 
+  // ── Cache-warming preloader ───────────────────────────────────────────────
+  // The grid cycles through STRIP_COPIES copies of the same set of images.
+  // With native lazy-loading, the user sees a brief fetch hiccup the first
+  // time each unique image enters the viewport — so the first full scroll
+  // cycle stutters before everything is cached.
+  //
+  // Fix: as soon as the page is interactive, kick off background fetches for
+  // every unique image at the optimized variant Next.js will request anyway.
+  // Browser dedupes the in-flight requests with the actual <Image>'s ones, so
+  // by the time strips scroll into view, frames hit the HTTP cache instantly.
+  useEffect(() => {
+    if (typeof window === 'undefined' || images.length === 0) return
+    const unique = Array.from(new Set(images))
+    // 640 covers up to ~3x DPR for our 250px-wide mobile cells with q=70.
+    // Same variant Next.js's <Image> picks for the visible cells, so the
+    // cache entries align and the actual <Image> mounts hit a warm cache.
+    const optimized = (src: string) =>
+      `/_next/image?url=${encodeURIComponent(src)}&w=640&q=70`
+
+    let cancelled = false
+    const fire = () => {
+      if (cancelled) return
+      for (const src of unique) {
+        // Fire-and-forget — browser HTTP cache holds the response
+        const img = new window.Image()
+        img.decoding = 'async'
+        img.src = optimized(src)
+      }
+    }
+
+    // Defer to idle time so it doesn't compete with first paint / hydration
+    type IdleHandle = number
+    type IdleWin = Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => IdleHandle
+      cancelIdleCallback?:  (id: IdleHandle) => void
+    }
+    const w = window as IdleWin
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(fire, { timeout: 1500 })
+      return () => { cancelled = true; w.cancelIdleCallback?.(id) }
+    }
+    const id = window.setTimeout(fire, 500)
+    return () => { cancelled = true; clearTimeout(id) }
+  }, [images])
+
   // ── Core: direct DOM transform (no framer-motion overhead in scroll loop) ──
   function updateColumns(accum: number) {
     const d = dimsRef.current
