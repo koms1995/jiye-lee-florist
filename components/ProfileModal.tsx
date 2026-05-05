@@ -2,10 +2,11 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback } from 'react'
-import PillButtons from './PillButtons'
 import { peonyParallax } from './peonyParallax'
+import { THEMES, themeCssVars, type Theme } from './themes'
 
 const LAYOUT_TRANSITION = { duration: 0.42, ease: [0.76, 0, 0.24, 1] as const }
+const FALLBACK_THEME: Theme = THEMES[0]
 
 // ── Career data — newest-first, refined date format ──────────────────────────
 type Cert    = { name: string; detail?: string }
@@ -53,7 +54,8 @@ const PROJECTS: Project[] = [
 interface Props {
   isOpen:         boolean
   onClose:        () => void
-  fromBg:         string
+  /** The full theme picked from the clicked card (null when no card is active). */
+  theme:          Theme | null
   activeStripSi:  number | null
 }
 
@@ -103,7 +105,7 @@ const DESCRIPTION =
   'AND EDITORIAL PROJECTS. TRAINED IN KOREA AND EUROPE, WITH A FOCUS ON ' +
   'SEASONAL BOTANICALS AND SPATIAL STORYTELLING.'
 
-function BioBlock({ isMobile }: { isMobile: boolean }) {
+function BioBlock({ isMobile, theme }: { isMobile: boolean; theme: Theme }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -116,9 +118,6 @@ function BioBlock({ isMobile }: { isMobile: boolean }) {
         pointerEvents: 'none',
         zIndex:        6,
         ...(isMobile
-          // Mobile: in-flow (no absolute) so its parent (the hero block)
-          // auto-sizes to include this content. Avoids vh-based hero height
-          // overflowing on iOS Safari where the URL bar shrinks innerHeight.
           ? {
               position: 'relative',
               padding:  '0 1.5rem',
@@ -132,15 +131,13 @@ function BioBlock({ isMobile }: { isMobile: boolean }) {
         ),
       }}
     >
-      {/* Roles — Helvetica Neue grotesque (nrly.co-style), medium weight,
-          tight tracking. whiteSpace:nowrap + size tuned so each role fits on
-          one line on mobile. Color is a softened warm dark (#3D2828)
-          rather than near-black for a less harsh, more refined feel. */}
+      {/* Roles — Helvetica Neue grotesque, theme-driven body color so each
+          theme's contrast (white on dark, dark on light) is applied. */}
       <ol style={{
         listStyle:     'none',
         padding:       0,
         margin:        0,
-        color:         '#3D2828',
+        color:         theme.body,
         fontFamily:    '"Helvetica Neue", Helvetica, Arial, system-ui, sans-serif',
         fontWeight:    500,
         fontSize:      isMobile ? '20px' : '26px',
@@ -157,7 +154,7 @@ function BioBlock({ isMobile }: { isMobile: boolean }) {
             <span style={{
               fontSize:   isMobile ? '13px' : '17px',
               fontWeight: 400,
-              color:      '#3D2828',
+              color:      theme.body,
               flexShrink: 0,
               opacity:    0.85,
               lineHeight: 1,
@@ -169,11 +166,11 @@ function BioBlock({ isMobile }: { isMobile: boolean }) {
         ))}
       </ol>
 
-      {/* Description — same Inter family, smaller, slightly muted. */}
+      {/* Description — uses the theme's secondary (meta) color for hierarchy. */}
       <p style={{
         marginTop:     isMobile ? '1.6rem' : '2rem',
         marginBottom:  0,
-        color:         '#5A4444',
+        color:         theme.meta,
         fontFamily:    'var(--font-inter), system-ui, sans-serif',
         fontSize:      isMobile ? '12.5px' : '14px',
         letterSpacing: '0.04em',
@@ -245,10 +242,13 @@ function CareerSections() {
 //      card→fullscreen FLIP expansion.
 //   2. modal-content (z=905): all UI (close button, name, scroll text).
 //      Persistent canvas sits at z=902 between these two layers.
-export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }: Props) {
+export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: Props) {
   const vw       = typeof window !== 'undefined' ? window.innerWidth : 1440
   const isMobile = vw < 768
   const cardLayoutId = activeStripSi !== null ? `card-${activeStripSi}` : undefined
+  // Use a fallback so destructuring below is always safe; the actual visible
+  // theme during animation is always the one passed in.
+  const t: Theme = theme ?? FALLBACK_THEME
 
   // Desktop scroll handler — feeds peonyParallax (consumed by PeonyCanvas useFrame)
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -261,24 +261,28 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* ── BACKGROUND LAYER — handles card→fullscreen layoutId expansion ── */}
+          {/* ── BACKGROUND LAYER — handles card→fullscreen layoutId expansion.
+              Background color stays constant at theme.bg because the source
+              card is rendered with the SAME bg color, so the layoutId FLIP
+              just expands position/size and the color reads as one continuous
+              field morphing outward. ── */}
           <motion.div
             key="modal-bg"
             layoutId={cardLayoutId}
             style={{
-              position: 'fixed',
-              inset:    0,
-              zIndex:   900,
-              overflow: 'hidden',
+              position:        'fixed',
+              inset:           0,
+              zIndex:          900,
+              overflow:        'hidden',
+              backgroundColor: t.bg,
             }}
-            initial={{ backgroundColor: fromBg }}
-            animate={{ backgroundColor: '#EDE0D4' }}
-            exit={{ backgroundColor: fromBg }}
             transition={LAYOUT_TRANSITION}
           />
 
           {/* ── CONTENT LAYER — fades in after bg expands. Sits ABOVE the
-              persistent 3D canvas (z=902) so text/buttons aren't occluded. ── */}
+              persistent 3D canvas (z=902) so text/buttons aren't occluded.
+              CSS vars set here cascade into the .profile-* classes used by
+              CareerSections so the entire interior re-themes at once. ── */}
           <motion.div
             key="modal-content"
             initial={{ opacity: 0 }}
@@ -289,9 +293,10 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
               inset:         0,
               zIndex:        905,
               pointerEvents: 'none',
+              ...themeCssVars(t),
             }}
           >
-            {/* Close button */}
+            {/* Close button — border + glyph color inherit theme.point */}
             <motion.button
               onClick={onClose}
               aria-label="Close profile"
@@ -303,10 +308,10 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 width:         '2.75rem',
                 height:        '2.75rem',
                 borderRadius:  '50%',
-                border:        '1px solid #D8A9AC',
+                border:        `1px solid ${t.point}`,
                 background:    'transparent',
                 cursor:        'pointer',
-                color:         '#D8A9AC',
+                color:         t.point,
                 fontSize:      '1.3rem',
                 display:       'flex',
                 alignItems:    'center',
@@ -347,7 +352,7 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                       fontSize:      '23vw',
                       lineHeight:    0.80,
                       letterSpacing: '-0.04em',
-                      color:         '#D8A9AC',
+                      color:         t.title,
                       margin:        0,
                       pointerEvents: 'none',
                     }}
@@ -362,7 +367,7 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                     style={{ height: 'calc(1.25rem + 36vw + 3rem)' }}
                   />
 
-                  <BioBlock isMobile />
+                  <BioBlock isMobile theme={t} />
                 </div>
 
                 <div style={{ padding: '2rem 1.5rem 7rem' }}>
@@ -383,7 +388,7 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                     fontSize:      '15vw',
                     lineHeight:    0.80,
                     letterSpacing: '-0.04em',
-                    color:         '#D8A9AC',
+                    color:         t.title,
                     margin:        0,
                     pointerEvents: 'none',
                   }}
@@ -392,7 +397,7 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 </h2>
 
                 {/* Bio absolute-positioned beneath the name, on the left half. */}
-                <BioBlock isMobile={false} />
+                <BioBlock isMobile={false} theme={t} />
 
                 <div
                   className="profile-scroll"
@@ -412,8 +417,9 @@ export default function ProfileModal({ isOpen, onClose, fromBg, activeStripSi }:
                 </div>
               </>
             )}
-
-            <PillButtons />
+            {/* PillButtons rendered once at PortfolioApp level — not here —
+                so a single instance handles both grid and modal contexts and
+                cross-fades color smoothly with the active theme. */}
           </motion.div>
         </>
       )}

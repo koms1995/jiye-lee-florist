@@ -2,7 +2,7 @@
 
 import { memo, Suspense, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, useGLTF } from '@react-three/drei'
+import { ContactShadows, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { peonyParallax } from './peonyParallax'
 
@@ -131,9 +131,13 @@ function PeonyCanvasInner() {
           canvas.addEventListener('webglcontextrestored', () => { /* three handles re-init */ }, false)
         }}
       >
-        <Environment preset="studio" />
+        {/* Local ambient (was Environment HDRI). The drei Environment preset
+            fetches a remote HDR from pmndrs.github.io which can fail on
+            restricted networks or stall the WebGL pipeline; a plain ambient
+            gives consistent fill light without the network dependency. */}
+        <ambientLight intensity={0.55} color="#FFF5EC" />
 
-        <directionalLight intensity={1.6}  position={[-1.6, 4.6, 3.0]} color="#FFF5EC" />
+        <directionalLight intensity={2.0}  position={[-1.6, 4.6, 3.0]} color="#FFF5EC" />
         <directionalLight intensity={1.2}  position={[0.5, 3.2, -4.5]} color="#E8E8FF" />
         <directionalLight intensity={0.55} position={[3.8, 1.0, -2.2]} color="#FFFFFF" />
         <directionalLight intensity={0.45} position={[0.5, 6.5, 1.5]}  color="#FFE8D8" />

@@ -56,8 +56,14 @@
 }
 
 /* ── Profile-modal editorial list system ─────────────────────────────────── */
+/*
+ * Theme-aware via CSS custom properties:
+ *   --theme-title / --theme-body / --theme-meta / --theme-divider
+ * Set by ProfileModal on the modal-content root (see themeCssVars()).
+ * Fallback values match the original beige modal palette so the styles work
+ * standalone if no theme is provided.
+ */
 
-/* Section is a layout container only — header & rows handle their own entry */
 .profile-section {
   margin-bottom: 4rem;
 }
@@ -67,7 +73,7 @@
   gap: 1.4rem;
   padding-bottom: 0.95rem;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid rgba(216, 169, 172, 0.28);
+  border-bottom: 1px solid var(--theme-divider, rgba(216, 169, 172, 0.28));
   opacity: 0;
   transform: translateY(14px);
   animation: profileFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -78,7 +84,7 @@
   font-weight: 300;
   font-size: 1.95rem;
   letter-spacing: -0.01em;
-  color: #A08C8C;
+  color: var(--theme-meta, #A08C8C);
   line-height: 1;
 }
 .profile-section__title {
@@ -86,7 +92,7 @@
   font-size: 1.4rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: #2E1F1F;
+  color: var(--theme-body, #2E1F1F);
   margin: 0;
   line-height: 1.2;
 }
@@ -109,26 +115,27 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  right: 1.8rem;                /* short by 1.8rem from row right edge */
+  right: 1.8rem;
   height: 1px;
-  background: rgba(216, 169, 172, 0.15);
+  background: var(--theme-divider, rgba(216, 169, 172, 0.15));
   transition: background-color 0.30s ease;
   pointer-events: none;
+  opacity: 0.55;
 }
 .profile-row--last::after {
   display: none;
 }
 .profile-row:hover {
-  background-color: rgba(216, 169, 172, 0.035);
+  background-color: rgba(255, 255, 255, 0.03);
 }
 .profile-row:hover::after {
-  background-color: rgba(216, 169, 172, 0.28);
+  opacity: 1;
 }
 .profile-row__meta {
   font-family: var(--font-inter), var(--font-pretendard);
   font-size: 0.68rem;
   letter-spacing: 0.12em;
-  color: #A08C8C;
+  color: var(--theme-meta, #A08C8C);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -136,14 +143,14 @@
   text-transform: uppercase;
 }
 .profile-row__content {
-  min-width: 0;                /* allows long titles to wrap, doesn't push grid */
+  min-width: 0;
 }
 .profile-row__title {
   font-family: var(--font-pretendard);
   font-size: 1rem;
   font-weight: 500;
   letter-spacing: -0.012em;
-  color: #2E1F1F;
+  color: var(--theme-body, #2E1F1F);
   line-height: 1.65;
   margin: 0;
   word-break: keep-all;
@@ -158,7 +165,7 @@
   font-size: 0.80rem;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: #7A5C5C;
+  color: var(--theme-meta, #7A5C5C);
   line-height: 1.55;
   margin: 0.32rem 0 0;
   word-break: keep-all;

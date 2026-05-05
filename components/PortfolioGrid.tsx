@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
+import { N_THEMES, themeForStrip, type Theme } from './themes'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const N_ROWS       = 5
-const N_COLORS     = 4
+const N_COLORS     = N_THEMES   // colorway cycle aligned to themes module
 const STRIP_COPIES = 12
 const GAP          = 15
 
@@ -35,14 +36,7 @@ const HERO_BOTTOM_ROW = 3   // cell directly below
 const FRICTION = 0.92   // velocity decay per frame
 const MIN_VEL  = 0.3    // stop threshold (px/frame)
 
-// ── Colorways ──────────────────────────────────────────────────────────────────
-type Colorway = { bg: string; name: string; text: string }
-const COLORWAYS: Colorway[] = [
-  { bg: '#C9A99A', name: '#2E1F1F', text: '#2E1F1F' },
-  { bg: '#2E1F1F', name: '#EDE0D4', text: '#EDE0D4' },
-  { bg: '#F5F0EB', name: '#3D2B2B', text: '#3D2B2B' },
-  { bg: '#7A5C5C', name: '#F5F0EB', text: '#F5F0EB' },
-]
+// Colorways now come from `./themes` — each card uses themeForStrip(si).
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function seededShuffle<T>(arr: T[], seed: number): T[] {
@@ -105,7 +99,8 @@ function computeDims(w: number, h: number): Dims {
 // ── Main component ─────────────────────────────────────────────────────────────
 interface Props {
   images: string[]
-  onProfileClick: (bg: string, si: number) => void
+  /** Receives the strip index. The theme is then derived via themeForStrip(si). */
+  onProfileClick: (si: number) => void
   onImageClick?: (layoutId: string, src: string) => void
 }
 
@@ -287,16 +282,15 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
     const safeEl = el  // narrowed const; closures can't widen it back to null
 
     // Helper: walk DOM upward looking for either a TextCard (data-si) or an
-    // ImageCell (data-img-id). Returns whichever is hit first — TextCards
-    // and image cells are siblings, so the inner one wins.
+    // ImageCell (data-img-id). Returns whichever is hit first.
     type Hit =
-      | { kind: 'card'; si: number; bg: string }
+      | { kind: 'card'; si: number }
       | { kind: 'image'; layoutId: string; src: string }
     function findHit(x: number, y: number, root: HTMLElement): Hit | null {
       let node = document.elementFromPoint(x, y) as HTMLElement | null
       while (node && node !== root) {
         if (node.dataset.si !== undefined) {
-          return { kind: 'card', si: parseInt(node.dataset.si), bg: node.dataset.bg ?? '' }
+          return { kind: 'card', si: parseInt(node.dataset.si) }
         }
         if (node.dataset.imgId !== undefined) {
           return { kind: 'image', layoutId: node.dataset.imgId, src: node.dataset.imgSrc ?? '' }
@@ -307,7 +301,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
     }
     const dispatchHit = (hit: Hit | null) => {
       if (!hit) return
-      if (hit.kind === 'card') onProfileClickRef.current(hit.bg, hit.si)
+      if (hit.kind === 'card') onProfileClickRef.current(hit.si)
       else if (onImageClickRef.current) onImageClickRef.current(hit.layoutId, hit.src)
     }
 
@@ -477,7 +471,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
           }}
         >
           {Array.from({ length: STRIP_COPIES }, (_, si) => {
-            const colorway = COLORWAYS[si % N_COLORS]
+            const theme = themeForStrip(si)
             return (
               <div
                 key={si}
@@ -502,7 +496,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
                         top={top}
                         width={colW}
                         height={cellH}
-                        colorway={colorway}
+                        theme={theme}
                         isMobile={isMobile}
                         si={si}
                       />
@@ -599,10 +593,11 @@ function ImageCell({ top, width, height, src, layoutId }: {
 
 // ── TextCard ───────────────────────────────────────────────────────────────────
 // Tap detection is handled by the parent container's native event handlers.
-// data-si / data-bg let those handlers identify which card was tapped.
-function TextCard({ top, width, height, colorway, isMobile, si }: {
+// data-si lets those handlers identify which card was tapped — the theme is
+// derived from si on the consumer side via themeForStrip(si).
+function TextCard({ top, width, height, theme, isMobile, si }: {
   top: number; width: number; height: number
-  colorway: Colorway
+  theme: Theme
   isMobile: boolean
   si: number
 }) {
@@ -615,12 +610,11 @@ function TextCard({ top, width, height, colorway, isMobile, si }: {
     <motion.div
       layoutId={`card-${si}`}
       data-si={String(si)}
-      data-bg={colorway.bg}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         position: 'absolute', top, left: 0, width, height,
-        backgroundColor: colorway.bg,
+        backgroundColor: theme.bg,
         cursor: 'pointer',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         padding: `${padV}px ${padH}px`,
@@ -640,7 +634,7 @@ function TextCard({ top, width, height, colorway, isMobile, si }: {
           fontSize:      nameFontSize,
           lineHeight:    0.85,
           letterSpacing: '-0.04em',
-          color:         colorway.name,
+          color:         theme.title,
           pointerEvents: 'none',
         }}
       >
@@ -653,7 +647,7 @@ function TextCard({ top, width, height, colorway, isMobile, si }: {
           fontSize:      isMobile ? '10px' : '11px',
           letterSpacing: '0.02em',
           lineHeight:    1.4,
-          color:         colorway.text,
+          color:         theme.body,
           textTransform: 'uppercase',
           marginBottom:  '0.6rem',
         }}>
@@ -665,7 +659,7 @@ function TextCard({ top, width, height, colorway, isMobile, si }: {
           fontFamily:    'var(--font-inter), system-ui, sans-serif',
           fontSize:      isMobile ? '10px' : '11px',
           letterSpacing: '0.06em',
-          color:         colorway.text,
+          color:         theme.body,
           textTransform: 'uppercase',
         }}>
           PROFILE ↗

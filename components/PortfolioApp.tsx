@@ -8,6 +8,7 @@ import ProfileModal from './ProfileModal'
 import PillButtons from './PillButtons'
 import ImageLightbox, { type LightboxImage } from './ImageLightbox'
 import { peonyParallax } from './peonyParallax'
+import { themeForStrip, type Theme } from './themes'
 
 // Dynamic import keeps the WebGL bundle out of the initial payload.
 // `ssr: false` prevents server rendering where WebGL is unavailable.
@@ -21,7 +22,7 @@ interface Props { images: string[] }
 export default function PortfolioApp({ images }: Props) {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [activeStripSi, setActiveStripSi] = useState<number | null>(null)
-  const [profileBg, setProfileBg]         = useState('#EDE0D4')
+  const [activeTheme, setActiveTheme]     = useState<Theme | null>(null)
   const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
 
   // Hydration gate — render canvas only after first client-side effect runs.
@@ -45,9 +46,9 @@ export default function PortfolioApp({ images }: Props) {
     return () => window.removeEventListener('mousemove', onMove)
   }, [])
 
-  function handleProfileClick(bg: string, si: number) {
+  function handleProfileClick(si: number) {
     setActiveStripSi(si)
-    setProfileBg(bg)
+    setActiveTheme(themeForStrip(si))
     setIsProfileOpen(true)
   }
 
@@ -85,7 +86,7 @@ export default function PortfolioApp({ images }: Props) {
         <ProfileModal
           isOpen={isProfileOpen}
           onClose={() => setIsProfileOpen(false)}
-          fromBg={profileBg}
+          theme={activeTheme}
           activeStripSi={activeStripSi}
         />
 
@@ -94,35 +95,36 @@ export default function PortfolioApp({ images }: Props) {
           onClose={() => setLightboxImage(null)}
         />
 
-        <PillButtons />
+        {/* Single source of pill buttons — themed when modal is open, default
+            when closed. Color cross-fades smoothly via CSS transitions. */}
+        <PillButtons theme={isProfileOpen ? activeTheme : null} />
       </LayoutGroup>
 
       {/* ── Persistent 3D canvas layer ──────────────────────────────────────
           Outside LayoutGroup. Mount-once after hydration, never re-mount.
           Hidden via translateX (NOT opacity) to keep WebGL context healthy. */}
       {isMobile !== null && (
-        <motion.div
+        <div
           key="persistent-canvas"
-          initial={false}
-          animate={{ x: isProfileOpen ? '0%' : '110%' }}
-          transition={{
-            duration: isProfileOpen ? 0.50 : 0.34,
-            delay:    isProfileOpen ? 0.28 : 0,
-            ease:     [0.43, 0.13, 0.23, 0.96],
-          }}
           style={{
             position:      'fixed',
             zIndex:        902,
             pointerEvents: 'none',
             overflow:      'visible',
             willChange:    'transform',
+            // Plain CSS transform/transition — NOT framer-motion. Per-frame
+            // transform writes from motion.div correlate with WebGL context
+            // loss on some Chromium builds; a single CSS transition keeps
+            // the GPU composite stable.
+            transform:     isProfileOpen ? 'translate3d(0,0,0)' : 'translate3d(110%,0,0)',
+            transition:    `transform ${isProfileOpen ? '0.50s' : '0.34s'} cubic-bezier(0.43, 0.13, 0.23, 0.96) ${isProfileOpen ? '0.28s' : '0s'}`,
             ...(isMobile
               ? { top: 0, left: '32%', right: '-18%', height: '58vh' }
               : { top: 0, bottom: 0, right: '-8vw', width: '48vw' }),
           }}
         >
           <PeonyCanvas />
-        </motion.div>
+        </div>
       )}
 
       {/* ── Tulip CC-BY attribution (viewport-anchored) ─────────────────────
