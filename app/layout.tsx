@@ -28,6 +28,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" className={`${cormorant.variable} ${inter.variable}`}>
+      <head>
+        {/* Pretendard — Korean/Latin font designed to be metrically compatible with Inter */}
+        <link
+          rel="stylesheet"
+          as="style"
+          crossOrigin=""
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+      </head>
       <body>
         {children}
         <Analytics />

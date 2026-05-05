@@ -89,9 +89,10 @@ function computeDims(w: number, h: number): Dims {
 interface Props {
   images: string[]
   onProfileClick: (bg: string, si: number) => void
+  onImageClick?: (layoutId: string, src: string) => void
 }
 
-export default function PortfolioGrid({ images, onProfileClick }: Props) {
+export default function PortfolioGrid({ images, onProfileClick, onImageClick }: Props) {
   const [dims, setDims]   = useState<Dims | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -102,16 +103,19 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
   const colRefs        = useRef<(HTMLDivElement | null)[]>(Array(N_COLS).fill(null))
 
   // Inertia
-  const inertia    = useRef<{ vel: number; rafId: number | null }>({ vel: 0, rafId: null })
-  const isDragging = useRef(false)
+  const inertia      = useRef<{ vel: number; rafId: number | null }>({ vel: 0, rafId: null })
+  const isDragging   = useRef(false)
+  const introPlayed  = useRef(false)
 
   // RAF batching: prevents >1 DOM update per frame during fast input
   const pendingRaf   = useRef<number | null>(null)
   const pendingAccum = useRef(0)
 
-  // Keep onProfileClick fresh inside stable native event handlers
+  // Keep callbacks fresh inside stable native event handlers
   const onProfileClickRef = useRef(onProfileClick)
   useEffect(() => { onProfileClickRef.current = onProfileClick }, [onProfileClick])
+  const onImageClickRef = useRef(onImageClick)
+  useEffect(() => { onImageClickRef.current = onImageClick }, [onImageClick])
 
   // ── Core: direct DOM transform (no framer-motion overhead in scroll loop) ──
   function updateColumns(accum: number) {
@@ -192,18 +196,50 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
     // Set initial column transforms now that colRefs are populated
     updateColumns(accumRef.current)
 
+    // Page-load intro: grid drifts upward into centered position
+    const introRaf = { id: null as number | null }
+    if (!introPlayed.current) {
+      introPlayed.current = true
+      const INTRO    = -300
+      const DURATION = 850
+      const start    = performance.now()
+      accumRef.current = INTRO
+      updateColumns(INTRO)
+      function stepIntro() {
+        const p = Math.min((performance.now() - start) / DURATION, 1)
+        const e = 1 - Math.pow(1 - p, 3)          // ease-out cubic
+        accumRef.current = INTRO * (1 - e)
+        updateColumns(accumRef.current)
+        if (p < 1) { introRaf.id = requestAnimationFrame(stepIntro) }
+      }
+      introRaf.id = requestAnimationFrame(stepIntro)
+    }
+
     const safeEl = el  // narrowed const; closures can't widen it back to null
 
-    // Helper: walk DOM upward looking for a TextCard (has data-si)
-    function findCard(x: number, y: number, root: HTMLElement): { si: number; bg: string } | null {
+    // Helper: walk DOM upward looking for either a TextCard (data-si) or an
+    // ImageCell (data-img-id). Returns whichever is hit first — TextCards
+    // and image cells are siblings, so the inner one wins.
+    type Hit =
+      | { kind: 'card'; si: number; bg: string }
+      | { kind: 'image'; layoutId: string; src: string }
+    function findHit(x: number, y: number, root: HTMLElement): Hit | null {
       let node = document.elementFromPoint(x, y) as HTMLElement | null
       while (node && node !== root) {
         if (node.dataset.si !== undefined) {
-          return { si: parseInt(node.dataset.si), bg: node.dataset.bg ?? '' }
+          return { kind: 'card', si: parseInt(node.dataset.si), bg: node.dataset.bg ?? '' }
+        }
+        if (node.dataset.imgId !== undefined) {
+          return { kind: 'image', layoutId: node.dataset.imgId, src: node.dataset.imgSrc ?? '' }
         }
         node = node.parentElement
       }
       return null
+    }
+    const dispatchHit = (hit: Hit | null) => {
+      if (!hit) return
+      if (hit.kind === 'card') onProfileClickRef.current(hit.bg, hit.si)
+      else if (onImageClickRef.current) onImageClickRef.current(hit.layoutId, hit.src)
     }
 
     // ── Touch (mobile) ──────────────────────────────────────────────────────
@@ -242,9 +278,8 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
       if (!touching) return
       touching = false
       if (!isDragging.current) {
-        const t    = e.changedTouches[0]
-        const card = findCard(t.clientX, t.clientY, safeEl)
-        if (card) onProfileClickRef.current(card.bg, card.si)
+        const t = e.changedTouches[0]
+        dispatchHit(findHit(t.clientX, t.clientY, safeEl))
       } else {
         startInertia()
       }
@@ -284,8 +319,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
       if (!mouseDown) return
       mouseDown = false
       if (!isDragging.current) {
-        const card = findCard(e.clientX, e.clientY, safeEl)
-        if (card) onProfileClickRef.current(card.bg, card.si)
+        dispatchHit(findHit(e.clientX, e.clientY, safeEl))
       } else {
         startInertia()
       }
@@ -322,6 +356,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup',   onMouseUp)
       el.removeEventListener('wheel',       onWheel)
+      if (introRaf.id !== null) cancelAnimationFrame(introRaf.id)
     }
   }, [ready]) // re-runs once ready→true so containerRef is actually in the DOM
 
@@ -349,11 +384,12 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
       ref={containerRef}
       className="fixed inset-0 select-none"
       style={{
-        overflow:    'clip',
-        opacity:     ready ? 1 : 0,
-        transition:  'opacity 0.5s ease',
-        touchAction: 'none',   // disable native scroll; our touchmove handles it
-        cursor:      'ns-resize',
+        overflow:        'clip',
+        opacity:         ready ? 1 : 0,
+        transition:      'opacity 0.5s ease',
+        touchAction:     'none',
+        cursor:          'ns-resize',
+        backgroundColor: '#F3E5CD',
       }}
     >
       {Array.from({ length: nCols }, (_, c) => (
@@ -382,7 +418,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
                   left:            0,
                   width:           colW,
                   height:          stripH,
-                  backgroundColor: colorway.bg,
+                  backgroundColor: '#F3E5CD',
                   contain:         'layout paint',
                 }}
               >
@@ -418,6 +454,7 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
                       width={colW}
                       height={cellH}
                       src={src}
+                      layoutId={`img-${c}-${si}-${r}`}
                     />
                   )
                 })}
@@ -431,11 +468,28 @@ export default function PortfolioGrid({ images, onProfileClick }: Props) {
 }
 
 // ── ImageCell ──────────────────────────────────────────────────────────────────
-function ImageCell({ top, width, height, src }: {
-  top: number; width: number; height: number; src: string
+// motion.div + layoutId enables shared-layout animation to the lightbox.
+// data-img-id / data-img-src let the parent's native click handlers route
+// taps to the lightbox without re-introducing React onClick (which would fire
+// during drags). pointerEvents:auto on the cell so elementFromPoint hits it.
+function ImageCell({ top, width, height, src, layoutId }: {
+  top: number; width: number; height: number; src: string; layoutId: string
 }) {
   return (
-    <div style={{ position: 'absolute', top, left: 0, width, height, overflow: 'hidden' }}>
+    <motion.div
+      layoutId={layoutId}
+      data-img-id={layoutId}
+      data-img-src={src}
+      transition={{ duration: 0.6, ease: [0.43, 0.13, 0.23, 0.96] }}
+      style={{
+        position:     'absolute',
+        top, left:    0,
+        width, height,
+        overflow:     'hidden',
+        pointerEvents:'auto',
+        cursor:       'zoom-in',
+      }}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -449,7 +503,7 @@ function ImageCell({ top, width, height, src }: {
           pointerEvents: 'none', userSelect: 'none',
         }}
       />
-    </div>
+    </motion.div>
   )
 }
 
@@ -515,7 +569,7 @@ function TextCard({ top, width, height, colorway, isMobile, si }: {
         }}>
           FLORAL ARTIST BASED IN SEOUL.
           <br />CRAFTING SEASONAL ARRANGEMENTS
-          <br />FOR WEDDINGS, EVENTS &amp; EDITORIAL.
+          <br />FOR EVENTS &amp; EDITORIAL.
         </p>
         <p style={{
           fontFamily:    'var(--font-inter), system-ui, sans-serif',

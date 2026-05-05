@@ -10,6 +10,8 @@
   --color-white: #F5F0EB;
   --font-serif: var(--font-cormorant), Georgia, serif;
   --font-sans: var(--font-inter), system-ui, sans-serif;
+  /* Pretendard is metrically compatible with Inter — KO/EN mix without ghosting */
+  --font-pretendard: 'Pretendard Variable', Pretendard, var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
 }
 
 @layer base {
@@ -39,4 +41,174 @@
     background-color: #2E1F1F;
     color: #EDE0D4;
   }
+}
+
+/* Profile-modal scroll containers — invisible scrollbar, smooth + contained scroll */
+.profile-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.profile-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Profile-modal editorial list system ─────────────────────────────────── */
+
+/* Section is a layout container only — header & rows handle their own entry */
+.profile-section {
+  margin-bottom: 4rem;
+}
+.profile-section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 1.4rem;
+  padding-bottom: 0.95rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(216, 169, 172, 0.28);
+  opacity: 0;
+  transform: translateY(14px);
+  animation: profileFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.profile-section__num {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 1.95rem;
+  letter-spacing: -0.01em;
+  color: #A08C8C;
+  line-height: 1;
+}
+.profile-section__title {
+  font-family: var(--font-pretendard);
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #2E1F1F;
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* Row — strict 140px / 1fr grid */
+.profile-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 1.6rem;
+  padding: 1.05rem 0;
+  position: relative;
+  align-items: baseline;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: profileFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: background-color 0.30s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.profile-row::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 1.8rem;                /* short by 1.8rem from row right edge */
+  height: 1px;
+  background: rgba(216, 169, 172, 0.15);
+  transition: background-color 0.30s ease;
+  pointer-events: none;
+}
+.profile-row--last::after {
+  display: none;
+}
+.profile-row:hover {
+  background-color: rgba(216, 169, 172, 0.035);
+}
+.profile-row:hover::after {
+  background-color: rgba(216, 169, 172, 0.28);
+}
+.profile-row__meta {
+  font-family: var(--font-inter), var(--font-pretendard);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: #A08C8C;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-top: 0.30rem;
+  text-transform: uppercase;
+}
+.profile-row__content {
+  min-width: 0;                /* allows long titles to wrap, doesn't push grid */
+}
+.profile-row__title {
+  font-family: var(--font-pretendard);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  color: #2E1F1F;
+  line-height: 1.65;
+  margin: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  transition: transform 0.30s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.profile-row:hover .profile-row__title {
+  transform: translateX(3px);
+}
+.profile-row__detail {
+  font-family: var(--font-pretendard);
+  font-size: 0.80rem;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: #7A5C5C;
+  line-height: 1.55;
+  margin: 0.32rem 0 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* Tablet / smaller desktop */
+@media (max-width: 768px) {
+  .profile-section { margin-bottom: 3rem; }
+  .profile-section__num { font-size: 1.6rem; }
+  .profile-section__title { font-size: 1.18rem; }
+
+  .profile-row {
+    grid-template-columns: 5.4rem 1fr;
+    gap: 0.95rem;
+    padding: 0.85rem 0;
+  }
+  .profile-row::after { right: 0; }
+  .profile-row__meta { font-size: 0.62rem; letter-spacing: 0.10em; padding-top: 0.22rem; }
+  .profile-row__title { font-size: 0.95rem; line-height: 1.55; }
+  .profile-row__detail { font-size: 0.76rem; }
+}
+
+/* Narrow phone — stacked layout (date on top, content below) */
+@media (max-width: 480px) {
+  .profile-row {
+    grid-template-columns: 1fr;
+    gap: 0.32rem;
+    padding: 0.85rem 0;
+  }
+  .profile-row__meta {
+    padding-top: 0;
+    font-size: 0.62rem;
+  }
+}
+
+/* Entrance keyframe */
+@keyframes profileFadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .profile-section__head, .profile-row {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .profile-row__title { transition: none; }
 }
