@@ -13,7 +13,7 @@ type Award   = { title: string; detail?: string; award: string }
 type Project = { date: string; title: string; detail?: string }
 
 const CERTIFICATIONS: Cert[] = [
-  { name: 'IHK German Florist', detail: '독일 상공회의소 인증 플로리스트' },
+  { name: '국제 IHK Floral Designer', detail: '독일 상공회의소 인증 플로리스트' },
 ]
 
 const AWARDS: Award[] = [

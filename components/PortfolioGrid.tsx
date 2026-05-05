@@ -21,6 +21,16 @@ const MOBILE_COL_W_RATIO   = 0.641  //  regardless of viewport height (which
                                     //  shrinks on iOS Safari with URL bar).
 const IMG_OFFSETS           = [0, 5, 10, 14, 19] as const
 
+// ── Hero overrides — fixed images that sit directly above and below the
+// mauve-pink (colorway-0) text card. Initial scroll lands on this card, so
+// these are the first images the user sees flanking the center. They also
+// repeat for every colorway-0 strip across the wrap, keeping the visual
+// signature consistent every time the user scrolls back to that card.
+const HERO_TOP_IMG    = '/images/gallery/013.jpeg'
+const HERO_BOTTOM_IMG = '/images/gallery/01.jpeg'
+const HERO_TOP_ROW    = 1   // cell directly above the row-2 text card
+const HERO_BOTTOM_ROW = 3   // cell directly below
+
 // Momentum
 const FRICTION = 0.92   // velocity decay per frame
 const MIN_VEL  = 0.3    // stop threshold (px/frame)
@@ -137,11 +147,14 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
   useEffect(() => {
     if (typeof window === 'undefined' || images.length === 0) return
     const unique = Array.from(new Set(images))
-    // 640 covers up to ~3x DPR for our 250px-wide mobile cells with q=70.
-    // Same variant Next.js's <Image> picks for the visible cells, so the
-    // cache entries align and the actual <Image> mounts hit a warm cache.
+    // Pick the variant the browser is most likely to request on this device
+    // so the preload aligns with the actual <Image> fetches and warms the
+    // HTTP cache. Mobile uses 640 (covers retina), desktop uses 1080 (covers
+    // wide retina monitors with sizes=22vw at q=80).
+    const isMob = window.innerWidth < 640
+    const variantW = isMob ? 640 : 1080
     const optimized = (src: string) =>
-      `/_next/image?url=${encodeURIComponent(src)}&w=640&q=70`
+      `/_next/image?url=${encodeURIComponent(src)}&w=${variantW}&q=80`
 
     let cancelled = false
     const fire = () => {
@@ -221,7 +234,11 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
       const d = computeDims(w, h)
       dimsRef.current = d
 
-      const midCopy    = Math.floor(STRIP_COPIES / 2)
+      // Center the initial view on a strip whose colorway is COLORWAYS[0]
+      // (the mauve-pink one). midCopy must be a multiple of N_COLORS so the
+      // wrap also lands on this colorway every cycle, and so the override
+      // images defined below stay aligned across wraps.
+      const midCopy    = 8   // 8 % N_COLORS(4) === 0 → colorway 0
       const textCenter = midCopy * d.stripH + TEXT_ROW * d.cellH + d.cellH / 2
       initYRef.current = Math.round(-(textCenter - h / 2))
 
@@ -495,9 +512,26 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
                   const imgIdx        = (c === textCol && r > TEXT_ROW) ? r - 1 : r
                   const imgs          = colImages[c]
                   const IMGS_PER_STRIP = N_ROWS - 1
-                  const src = (isMobile && c === textCol && imgs.length > N_ROWS)
-                    ? imgs[(si * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
-                    : imgs?.[imgIdx % (imgs?.length || 1)] ?? ''
+
+                  // Hero override: rows directly above/below the centered
+                  // text card (only on colorway-0 strips, so the override
+                  // wraps seamlessly). Other rows fall through to the
+                  // shuffled image cycle below.
+                  const isHeroSlot = c === textCol && (si % N_COLORS) === 0
+                  let src: string
+                  if (isHeroSlot && r === HERO_TOP_ROW) {
+                    src = HERO_TOP_IMG
+                  } else if (isHeroSlot && r === HERO_BOTTOM_ROW) {
+                    src = HERO_BOTTOM_IMG
+                  } else if (isMobile && c === textCol && imgs.length > N_ROWS) {
+                    // Mobile center column uses ALL images for variety, but
+                    // the strip index is modulo'd by N_COLORS so wrap-aligned
+                    // strips (0, 4, 8…) show the same images — no abrupt
+                    // image swap at the wrap boundary.
+                    src = imgs[((si % N_COLORS) * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
+                  } else {
+                    src = imgs?.[imgIdx % (imgs?.length || 1)] ?? ''
+                  }
 
                   return (
                     <ImageCell
@@ -546,9 +580,12 @@ function ImageCell({ top, width, height, src, layoutId }: {
         src={src}
         alt=""
         fill
-        // Tell the browser/Next which size variant to fetch for each viewport
-        sizes="(max-width: 640px) 250px, 280px"
-        quality={70}
+        // Mobile: fixed 250px (matches MOBILE_COL_W_RATIO * width).
+        // Desktop: 22vw scales with the actual cell width on any monitor —
+        // a 1920px display gets a much larger variant than a 1280px one,
+        // so cells stay sharp on big screens instead of being upscaled.
+        sizes="(max-width: 640px) 250px, 22vw"
+        quality={80}
         draggable={false}
         style={{
           objectFit:     'cover',
@@ -620,9 +657,9 @@ function TextCard({ top, width, height, colorway, isMobile, si }: {
           textTransform: 'uppercase',
           marginBottom:  '0.6rem',
         }}>
-          FLORAL ARTIST BASED IN SEOUL.
+          FLORAL ARTIST BASED IN KOREA.
           <br />CRAFTING SEASONAL ARRANGEMENTS
-          <br />FOR EVENTS &amp; EDITORIAL.
+          <br />FOR COMMERCIAL, EVENTS &amp; EDITORIAL.
         </p>
         <p style={{
           fontFamily:    'var(--font-inter), system-ui, sans-serif',
