@@ -18,6 +18,10 @@ const CERTIFICATIONS: Cert[] = [
 
 const AWARDS: Award[] = [
   {
+    title:  '국제꽃장식대회 Body Flower',
+    award:  '금상',
+  },  
+  {
     title:  'Takashimaya × Harijanto Floral Extravagance',
     detail: 'Singapore',
     award:  'Crystal Award',
