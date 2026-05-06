@@ -37,7 +37,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
       </head>
-      <body>
+      {/* suppressHydrationWarning: Grammarly and other browser extensions
+          inject `data-gr-*` attributes into the body tag client-side, which
+          differ from the server-rendered HTML. The mismatch is harmless but
+          fills the console with hydration warnings — this attribute tells
+          React to ignore body-level diffs. Doesn't affect children. */}
+      <body suppressHydrationWarning>
         {children}
         <Analytics />
       </body>

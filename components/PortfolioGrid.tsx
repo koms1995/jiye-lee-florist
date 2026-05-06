@@ -233,12 +233,18 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
       const d = computeDims(w, h)
       dimsRef.current = d
 
-      // Center the initial view on a strip whose colorway is COLORWAYS[0]
-      // (the mauve-pink one). midCopy must be a multiple of N_COLORS so the
-      // wrap also lands on this colorway every cycle, and so the override
-      // images defined below stay aligned across wraps.
+      // Center the initial view on a strip whose colorway is THEMES[0].
+      // midCopy must be a multiple of N_COLORS so the wrap also lands on
+      // this colorway every cycle, and so the override images defined below
+      // stay aligned across wraps.
+      //
+      // BUG FIX: the previous textCenter formula multiplied TEXT_ROW by
+      // cellH alone — but rows are spaced by (cellH + GAP), so the actual
+      // card center sits 2*GAP=30px BELOW the formula's result. That
+      // discrepancy made the IntroReveal's clip-path land 30px above the
+      // real TextCard, producing a 30px snap when the overlay unmounted.
       const midCopy    = 8   // 8 % N_COLORS(4) === 0 → colorway 0
-      const textCenter = midCopy * d.stripH + TEXT_ROW * d.cellH + d.cellH / 2
+      const textCenter = midCopy * d.stripH + TEXT_ROW * (d.cellH + GAP) + d.cellH / 2
       initYRef.current = Math.round(-(textCenter - h / 2))
 
       updateColumns(accumRef.current)
