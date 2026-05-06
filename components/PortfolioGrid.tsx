@@ -102,9 +102,13 @@ interface Props {
   /** Receives the strip index. The theme is then derived via themeForStrip(si). */
   onProfileClick: (si: number) => void
   onImageClick?: (layoutId: string, src: string) => void
+  /** When the modal is open, this is the active card's strip index — TextCards
+   *  whose si matches will fade out their bio/PROFILE elements during the
+   *  layoutId expansion to the modal. */
+  activeProfileSi?: number | null
 }
 
-export default function PortfolioGrid({ images, onProfileClick, onImageClick }: Props) {
+export default function PortfolioGrid({ images, onProfileClick, onImageClick, activeProfileSi }: Props) {
   const [dims, setDims]   = useState<Dims | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -260,24 +264,14 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
     // Set initial column transforms now that colRefs are populated
     updateColumns(accumRef.current)
 
-    // Page-load intro: grid drifts upward into centered position
-    const introRaf = { id: null as number | null }
-    if (!introPlayed.current) {
-      introPlayed.current = true
-      const INTRO    = -300
-      const DURATION = 850
-      const start    = performance.now()
-      accumRef.current = INTRO
-      updateColumns(INTRO)
-      function stepIntro() {
-        const p = Math.min((performance.now() - start) / DURATION, 1)
-        const e = 1 - Math.pow(1 - p, 3)          // ease-out cubic
-        accumRef.current = INTRO * (1 - e)
-        updateColumns(accumRef.current)
-        if (p < 1) { introRaf.id = requestAnimationFrame(stepIntro) }
-      }
-      introRaf.id = requestAnimationFrame(stepIntro)
-    }
+    // Note: the page-load intro is now handled visually by PortfolioApp's
+    // IntroReveal overlay (clip-path shrink) + a CSS keyframe (gridIntro)
+    // applied to this container's `animation` style — see the outer JSX
+    // below. We no longer drift columns from accumRef = -300, because the
+    // IntroReveal already centers the user's attention; doubling up with a
+    // column-translate animation just delays the reveal of the surrounding
+    // images.
+    introPlayed.current = true
 
     const safeEl = el  // narrowed const; closures can't widen it back to null
 
@@ -419,7 +413,6 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup',   onMouseUp)
       el.removeEventListener('wheel',       onWheel)
-      if (introRaf.id !== null) cancelAnimationFrame(introRaf.id)
     }
   }, [ready]) // re-runs once ready→true so containerRef is actually in the DOM
 
@@ -442,17 +435,21 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
   const { nCols, colW, cellH, stripH, textCol, isMobile, gridOffset } = dims
 
   return (
-    // Full-viewport overlay — no native scroll; we drive it ourselves
+    // Full-viewport overlay — no native scroll; we drive it ourselves.
+    // gridIntro: 0.85 → 1 + 0 → 1 over 400ms starting at 300ms (matches
+    // the user's 300–700ms grid-bloom window). Pairs with IntroReveal's
+    // clip-path shrink to give the bg-condense / grid-bloom rhythm.
     <div
       ref={containerRef}
       className="fixed inset-0 select-none"
       style={{
         overflow:        'clip',
-        opacity:         ready ? 1 : 0,
-        transition:      'opacity 0.5s ease',
         touchAction:     'none',
         cursor:          'ns-resize',
         backgroundColor: '#F3E5CD',
+        animation:       ready ? 'gridIntro 0.4s cubic-bezier(0.43, 0.13, 0.23, 0.96) 0.3s both' : 'none',
+        opacity:         ready ? undefined : 0,
+        transformOrigin: 'center center',
       }}
     >
       {Array.from({ length: nCols }, (_, c) => (
@@ -499,6 +496,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick }: 
                         theme={theme}
                         isMobile={isMobile}
                         si={si}
+                        isActive={activeProfileSi === si}
                       />
                     )
                   }
@@ -595,11 +593,14 @@ function ImageCell({ top, width, height, src, layoutId }: {
 // Tap detection is handled by the parent container's native event handlers.
 // data-si lets those handlers identify which card was tapped — the theme is
 // derived from si on the consumer side via themeForStrip(si).
-function TextCard({ top, width, height, theme, isMobile, si }: {
+function TextCard({ top, width, height, theme, isMobile, si, isActive }: {
   top: number; width: number; height: number
   theme: Theme
   isMobile: boolean
   si: number
+  /** True for the card whose modal is currently open — bio/PROFILE fades
+   *  down + out so only the empty bg morphs to fullscreen. */
+  isActive: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const nameFontSize = Math.round(width * 0.38)
@@ -612,21 +613,47 @@ function TextCard({ top, width, height, theme, isMobile, si }: {
       data-si={String(si)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      // Mobile parity for the PROFILE underline: hover events don't fire
+      // on touch devices, so use touchstart to flip `hovered` for the
+      // duration of the touch. The native grid handlers in PortfolioGrid
+      // still own drag/inertia detection — we just piggyback on touchstart
+      // for the visual underline, and clear on touchend / touchcancel.
+      onTouchStart={() => setHovered(true)}
+      onTouchEnd={()   => setHovered(false)}
+      onTouchCancel={() => setHovered(false)}
+      // Spring physics for the card → modal layoutId expansion. Stiffness
+      // 160 / damping 22 / mass 1 matches ProfileModal's LAYOUT_TRANSITION,
+      // giving the card-to-fullscreen morph a weighty but slightly springy
+      // landing — nrly.co's signature physics.
+      transition={{ layout: { type: 'spring', stiffness: 160, damping: 22, mass: 1 } }}
       style={{
-        position: 'absolute', top, left: 0, width, height,
+        position:        'absolute',
+        top, left:       0,
+        width, height,
         backgroundColor: theme.bg,
-        cursor: 'pointer',
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        padding: `${padV}px ${padH}px`,
-        userSelect: 'none',
-        overflow: 'hidden',
-        filter: hovered ? 'brightness(0.92)' : 'none',
-        transition: 'filter 0.18s ease',
-        touchAction: 'none',
+        cursor:          'pointer',
+        display:         'flex',
+        flexDirection:   'column',
+        justifyContent:  'space-between',
+        padding:         `${padV}px ${padH}px`,
+        userSelect:      'none',
+        overflow:        'hidden',
+        filter:          hovered ? 'brightness(0.92)' : 'none',
+        transition:      'filter 0.18s ease',
+        touchAction:     'none',
       }}
     >
       <motion.h1
         layoutId={`name-${si}`}
+        // 600–900ms: Jiye Lee rises y:20 → 0 + opacity 0 → 1 just as the
+        // bg's clip-path is finishing its shrink. layoutId takes over on
+        // subsequent modal open/close, smoothly interpolating the font size
+        // between card (small) and modal (large) sizes.
+        initial={{ y: 20, opacity: 0 }}
+        animate={{
+          y: 0, opacity: 1,
+          transition: { delay: 0.6, duration: 0.3, ease: [0.43, 0.13, 0.23, 0.96] },
+        }}
         style={{
           fontFamily:    'var(--font-cormorant), Georgia, serif',
           fontWeight:    300,
@@ -641,7 +668,19 @@ function TextCard({ top, width, height, theme, isMobile, si }: {
         Jiye<br />Lee
       </motion.h1>
 
-      <div style={{ pointerEvents: 'none' }}>
+      {/* Bio + PROFILE container — shares the same intro rise (y:20→0,
+          opacity 0→1) at 600–900ms. When the card becomes the active modal
+          (isActive), the entire block fades DOWN (y:0→15) and OUT so the
+          empty bg can morph to fullscreen unobstructed. */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={
+          isActive
+            ? { y: 15, opacity: 0, transition: { duration: 0.30, ease: 'easeOut' } }
+            : { y: 0, opacity: 1, transition: { delay: 0.6, duration: 0.3, ease: [0.43, 0.13, 0.23, 0.96] } }
+        }
+        style={{ pointerEvents: 'none' }}
+      >
         <p style={{
           fontFamily:    'var(--font-inter), system-ui, sans-serif',
           fontSize:      isMobile ? '10px' : '11px',
@@ -651,7 +690,7 @@ function TextCard({ top, width, height, theme, isMobile, si }: {
           textTransform: 'uppercase',
           marginBottom:  '0.6rem',
         }}>
-          FLORAL ARTIST BASED IN KOREA.
+          FLORAL DESIGNER BASED IN KOREA.
           <br />CRAFTING SEASONAL ARRANGEMENTS
           <br />FOR COMMERCIAL, EVENTS &amp; EDITORIAL.
         </p>
@@ -662,9 +701,28 @@ function TextCard({ top, width, height, theme, isMobile, si }: {
           color:         theme.body,
           textTransform: 'uppercase',
         }}>
-          PROFILE ↗
+          {/* PROFILE underline — 1px line wipes left→right on hover/touch.
+              0.3s timing per spec. */}
+          <span style={{ position: 'relative', display: 'inline-block' }}>
+            PROFILE
+            <span
+              aria-hidden
+              style={{
+                position:        'absolute',
+                left:            0,
+                right:           0,
+                bottom:          -2,
+                height:          1,
+                backgroundColor: 'currentColor',
+                transformOrigin: 'left center',
+                transform:       hovered ? 'scaleX(1)' : 'scaleX(0)',
+                transition:      'transform 0.30s cubic-bezier(0.76, 0, 0.24, 1)',
+              }}
+            />
+          </span>
+          {' ↗'}
         </p>
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

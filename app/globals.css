@@ -75,7 +75,7 @@
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--theme-divider, rgba(216, 169, 172, 0.28));
   opacity: 0;
-  transform: translateY(14px);
+  transform: translateY(30px);
   animation: profileFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .profile-section__num {
@@ -106,7 +106,7 @@
   position: relative;
   align-items: baseline;
   opacity: 0;
-  transform: translateY(14px);
+  transform: translateY(30px);
   animation: profileFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transition: background-color 0.30s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -207,6 +207,20 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Grid intro — surrounding images bloom 0.85 → 1.0 + opacity 0 → 1 in the
+   300–700ms window, so the bg's "condensation" appears to PULL the grid
+   into the surrounding space. */
+@keyframes gridIntro {
+  from {
+    transform: scale(0.85);
+    opacity:   0;
+  }
+  to {
+    transform: scale(1);
+    opacity:   1;
   }
 }
 

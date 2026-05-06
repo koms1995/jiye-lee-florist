@@ -7,8 +7,14 @@ import PortfolioGrid from './PortfolioGrid'
 import ProfileModal from './ProfileModal'
 import PillButtons from './PillButtons'
 import ImageLightbox, { type LightboxImage } from './ImageLightbox'
+import IntroReveal from './IntroReveal'
 import { peonyParallax } from './peonyParallax'
-import { themeForStrip, type Theme } from './themes'
+import { themeForStrip, THEMES, type Theme } from './themes'
+
+// The IntroReveal plate uses the centered card's theme so the shrunken
+// rectangle visually merges with the underlying TextCard at the same spot.
+// midCopy=8 in PortfolioGrid puts a colorway-0 strip at center → THEMES[0].
+const INTRO_THEME: Theme = THEMES[0]
 
 // Dynamic import keeps the WebGL bundle out of the initial payload.
 // `ssr: false` prevents server rendering where WebGL is unavailable.
@@ -24,6 +30,7 @@ export default function PortfolioApp({ images }: Props) {
   const [activeStripSi, setActiveStripSi] = useState<number | null>(null)
   const [activeTheme, setActiveTheme]     = useState<Theme | null>(null)
   const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
+  const [isIntroDone, setIsIntroDone]     = useState(false)
 
   // Hydration gate — render canvas only after first client-side effect runs.
   // Prevents mount-during-SSR / hydration mismatch issues that can corrupt
@@ -68,6 +75,9 @@ export default function PortfolioApp({ images }: Props) {
           images={images}
           onProfileClick={handleProfileClick}
           onImageClick={handleImageClick}
+          // Active card's bio/PROFILE fades out during the layoutId
+          // expansion so only the empty bg morphs to fullscreen.
+          activeProfileSi={isProfileOpen ? activeStripSi : null}
         />
 
         <AnimatePresence>
@@ -99,6 +109,18 @@ export default function PortfolioApp({ images }: Props) {
             when closed. Color cross-fades smoothly via CSS transitions. */}
         <PillButtons theme={isProfileOpen ? activeTheme : null} />
       </LayoutGroup>
+
+      {/* ── Intro reveal ────────────────────────────────────────────────────
+          Full-screen theme plate that contracts (clip-path inset) into the
+          shape of the centered card. Mounted once on first load; unmounts
+          on completion so it doesn't intercept any subsequent interactions
+          or repaint workload. */}
+      {!isIntroDone && (
+        <IntroReveal
+          theme={INTRO_THEME}
+          onComplete={() => setIsIntroDone(true)}
+        />
+      )}
 
       {/* ── Persistent 3D canvas layer ──────────────────────────────────────
           Outside LayoutGroup. Mount-once after hydration, never re-mount.

@@ -5,7 +5,16 @@ import { useCallback } from 'react'
 import { peonyParallax } from './peonyParallax'
 import { THEMES, themeCssVars, type Theme } from './themes'
 
-const LAYOUT_TRANSITION = { duration: 0.42, ease: [0.76, 0, 0.24, 1] as const }
+// Spring physics tuned to spec: 160 / 22 / 1 — slightly snappier than
+// 120/20/1, with a subtly springy landing at the end (slight overshoot
+// then settle). Both the source TextCard and the modal-bg use this same
+// transition so the morph is symmetric in either direction.
+const LAYOUT_TRANSITION = {
+  type:      'spring' as const,
+  stiffness: 160,
+  damping:   22,
+  mass:      1,
+}
 const FALLBACK_THEME: Theme = THEMES[0]
 
 // ── Career data — newest-first, refined date format ──────────────────────────
@@ -44,7 +53,7 @@ const PROJECTS: Project[] = [
   { date: '2025.02.18 — 03.26',  title: '용인 시대인재 기숙학원' },
   { date: '2024.12.24',          title: "영화 ‘보고타’ VIP 시사회" },
   { date: '2024.11.27',          title: 'Colombia Travel Road Show', detail: 'Marina Park' },
-  { date: '2024.11.26',          title: 'EDIYA COFFE LAP × Flowers of Colombia' },
+  { date: '2024.11.26',          title: 'EDIYA COFFE LAB × Flowers of Colombia' },
   { date: '2024.11.25',          title: '2024 Flowers of Colombia' },
   { date: '2024.09.26',          title: '서울클럽 120주년 기념식' },
   { date: '2024',                title: "MBC 드라마 ‘바니와 오빠들’" },
@@ -60,8 +69,12 @@ interface Props {
 }
 
 // ── Stagger constants — entry animation ─────────────────────────────────────
-const STAGGER_BASE = 0.42
-const STAGGER_STEP = 0.035
+// Section-grouped stagger: each section header lands 0.15s after the previous
+// section, then its rows fan out at a faster intra-section cadence.
+const SECTION_BASE    = 0.42   // first section header delay (after spring ~70%)
+const SECTION_STAGGER = 0.15   // gap between section headers
+const ROW_LEAD        = 0.05   // row 0 of a section starts this long after header
+const ROW_STEP        = 0.04   // intra-section row stagger
 
 function SectionHeader({ number, title, delay }: { number: string; title: string; delay: number }) {
   return (
@@ -108,12 +121,14 @@ const DESCRIPTION =
 function BioBlock({ isMobile, theme }: { isMobile: boolean; theme: Theme }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{
         opacity: 1, y: 0,
-        transition: { delay: 0.36, duration: 0.45, ease: [0.43, 0.13, 0.23, 0.96] },
+        // Fires at ~60% of the spring's perceived progress, so the bio
+        // content appears as the card finishes settling into fullscreen.
+        transition: { delay: 0.42, duration: 0.55, ease: [0.43, 0.13, 0.23, 0.96] },
       }}
-      exit={{ opacity: 0, transition: { duration: 0.18 } }}
+      exit={{ opacity: 0, y: 10, transition: { duration: 0.18 } }}
       style={{
         pointerEvents: 'none',
         zIndex:        6,
@@ -184,13 +199,15 @@ function BioBlock({ isMobile, theme }: { isMobile: boolean; theme: Theme }) {
 }
 
 function CareerSections() {
-  let idx = 0
-  const nextDelay = () => STAGGER_BASE + (idx++) * STAGGER_STEP
+  // Per-section delay base — each section's contents (header + rows) all
+  // bloom in tightly together, but the THREE section groups themselves are
+  // staggered by 0.15s so the user reads them in sequence.
+  const sectionDelay = (i: number) => SECTION_BASE + i * SECTION_STAGGER
 
   return (
     <>
       <section className="profile-section">
-        <SectionHeader number="01" title="Certification" delay={nextDelay()} />
+        <SectionHeader number="01" title="Certification" delay={sectionDelay(0)} />
         {CERTIFICATIONS.map((c, i) => (
           <ItemRow
             key={c.name}
@@ -198,13 +215,13 @@ function CareerSections() {
             title={c.name}
             detail={c.detail}
             isLast={i === CERTIFICATIONS.length - 1}
-            delay={nextDelay()}
+            delay={sectionDelay(0) + ROW_LEAD + i * ROW_STEP}
           />
         ))}
       </section>
 
       <section className="profile-section">
-        <SectionHeader number="02" title="Awards" delay={nextDelay()} />
+        <SectionHeader number="02" title="Awards" delay={sectionDelay(1)} />
         {AWARDS.map((a, i) => (
           <ItemRow
             key={a.title}
@@ -212,13 +229,13 @@ function CareerSections() {
             title={a.title}
             detail={a.detail}
             isLast={i === AWARDS.length - 1}
-            delay={nextDelay()}
+            delay={sectionDelay(1) + ROW_LEAD + i * ROW_STEP}
           />
         ))}
       </section>
 
       <section className="profile-section" style={{ marginBottom: '2rem' }}>
-        <SectionHeader number="03" title="Selected Projects" delay={nextDelay()} />
+        <SectionHeader number="03" title="Selected Projects" delay={sectionDelay(2)} />
         {PROJECTS.map((p, i) => (
           <ItemRow
             key={`${p.date}-${i}`}
@@ -226,7 +243,7 @@ function CareerSections() {
             title={p.title}
             detail={p.detail}
             isLast={i === PROJECTS.length - 1}
-            delay={nextDelay()}
+            delay={sectionDelay(2) + ROW_LEAD + i * ROW_STEP}
           />
         ))}
       </section>
@@ -265,7 +282,10 @@ export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: 
               Background color stays constant at theme.bg because the source
               card is rendered with the SAME bg color, so the layoutId FLIP
               just expands position/size and the color reads as one continuous
-              field morphing outward. ── */}
+              field morphing outward.
+              borderRadius: 0 here paired with 12 on the source card means
+              the corners curve outward during expansion and resolve to sharp
+              edges as the rectangle becomes the full viewport. ── */}
           <motion.div
             key="modal-bg"
             layoutId={cardLayoutId}
@@ -275,6 +295,7 @@ export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: 
               zIndex:          900,
               overflow:        'hidden',
               backgroundColor: t.bg,
+              borderRadius:    0,
             }}
             transition={LAYOUT_TRANSITION}
           />
@@ -341,7 +362,12 @@ export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: 
                     career section). The spacer below reserves vertical room
                     for the absolutely-positioned name. */}
                 <div style={{ position: 'relative' }}>
-                  <h2
+                  {/* Shared layoutId with the source TextCard's h1 — framer
+                      smoothly interpolates position AND font-size during the
+                      card→modal expansion (and reverses on close). */}
+                  <motion.h2
+                    layoutId={activeStripSi !== null ? `name-${activeStripSi}` : undefined}
+                    transition={LAYOUT_TRANSITION}
                     style={{
                       position:      'absolute',
                       top:           '1.25rem',
@@ -358,7 +384,7 @@ export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: 
                     }}
                   >
                     Jiye<br />Lee
-                  </h2>
+                  </motion.h2>
 
                   {/* Spacer — reserves vertical space for the absolute-
                       positioned name, then the bio flows naturally below. */}
@@ -377,7 +403,9 @@ export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: 
             ) : (
               // ── Desktop — left name + right scroll. Canvas is fixed at right.
               <>
-                <h2
+                <motion.h2
+                  layoutId={activeStripSi !== null ? `name-${activeStripSi}` : undefined}
+                  transition={LAYOUT_TRANSITION}
                   style={{
                     position:      'absolute',
                     top:           '5rem',
@@ -394,7 +422,7 @@ export default function ProfileModal({ isOpen, onClose, theme, activeStripSi }: 
                   }}
                 >
                   Jiye<br />Lee
-                </h2>
+                </motion.h2>
 
                 {/* Bio absolute-positioned beneath the name, on the left half. */}
                 <BioBlock isMobile={false} theme={t} />
