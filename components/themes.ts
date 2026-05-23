@@ -68,6 +68,15 @@ export const THEMES: readonly Theme[] = [
     divider: 'rgba(100, 39, 25, 0.32)',
     point:   '#642719',
   },
+  // ── 6 · Pale Periwinkle / Forest — soft lavender bg, deep green name
+  {
+    bg:      '#E8E3F2',
+    title:   '#2B4A2E',
+    body:    '#2E1F1F',
+    meta:    'rgba(46, 31, 31, 0.55)',
+    divider: 'rgba(43, 74, 46, 0.32)',
+    point:   '#2B4A2E',
+  },
 ] as const
 
 export const N_THEMES = THEMES.length
