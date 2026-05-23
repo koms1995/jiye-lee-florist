@@ -3,7 +3,7 @@ User-agent: *
 Allow: /
 
 # Host
-Host: https://jiyelee.vercel.app
+Host: https://ueeuiue.vercel.app
 
 # Sitemaps
-Sitemap: https://jiyelee.vercel.app/sitemap.xml
+Sitemap: https://ueeuiue.vercel.app/sitemap.xml
