@@ -39,14 +39,14 @@ export const THEMES: readonly Theme[] = [
     divider: 'rgba(216, 169, 172, 0.32)',
     point:   '#D8A9AC',
   },
-  // ── 3 · Cream / Terracotta — warm, daylight ────────────────────────────
+  // ── 3 · Cream / Deep Wine — wine name only, ink body for everything else
   {
     bg:      '#E6D5C3',
-    title:   '#C24D2C',
+    title:   '#A31047',
     body:    '#2E1F1F',
     meta:    'rgba(46, 31, 31, 0.55)',
-    divider: 'rgba(194, 77, 44, 0.32)',
-    point:   '#C24D2C',
+    divider: 'rgba(163, 16, 71, 0.32)',
+    point:   '#A31047',
   },
   // ── 4 · Pink / Ink — soft, blush, ink-on-pink ──────────────────────────
   {

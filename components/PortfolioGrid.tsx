@@ -233,17 +233,17 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
       const d = computeDims(w, h)
       dimsRef.current = d
 
-      // Center the initial view on a strip whose colorway is THEMES[0].
-      // midCopy must be a multiple of N_COLORS so the wrap also lands on
-      // this colorway every cycle, and so the override images defined below
-      // stay aligned across wraps.
+      // Center the initial view on a strip whose colorway is THEMES[2]
+      // (the cream / hot-pink theme). midCopy must satisfy
+      // midCopy % N_COLORS === 2 so the wrap-aligned hero override images
+      // also land on this colorway every cycle.
       //
       // BUG FIX: the previous textCenter formula multiplied TEXT_ROW by
       // cellH alone — but rows are spaced by (cellH + GAP), so the actual
       // card center sits 2*GAP=30px BELOW the formula's result. That
       // discrepancy made the IntroReveal's clip-path land 30px above the
       // real TextCard, producing a 30px snap when the overlay unmounted.
-      const midCopy    = 8   // 8 % N_COLORS(4) === 0 → colorway 0
+      const midCopy    = 6   // 6 % N_COLORS(4) === 2 → colorway 2 (cream)
       const textCenter = midCopy * d.stripH + TEXT_ROW * (d.cellH + GAP) + d.cellH / 2
       initYRef.current = Math.round(-(textCenter - h / 2))
 
@@ -452,7 +452,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
         overflow:        'clip',
         touchAction:     'none',
         cursor:          'ns-resize',
-        backgroundColor: '#F3E5CD',
+        backgroundColor: '#f0e9b6',
         animation:       ready ? 'gridIntro 0.4s cubic-bezier(0.43, 0.13, 0.23, 0.96) 0.3s both' : 'none',
         opacity:         ready ? undefined : 0,
         transformOrigin: 'center center',
@@ -484,7 +484,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
                   left:            0,
                   width:           colW,
                   height:          stripH,
-                  backgroundColor: '#F3E5CD',
+                  backgroundColor: '#f0e9b6',
                   contain:         'layout paint',
                 }}
               >
@@ -512,10 +512,11 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
                   const IMGS_PER_STRIP = N_ROWS - 1
 
                   // Hero override: rows directly above/below the centered
-                  // text card (only on colorway-0 strips, so the override
-                  // wraps seamlessly). Other rows fall through to the
-                  // shuffled image cycle below.
-                  const isHeroSlot = c === textCol && (si % N_COLORS) === 0
+                  // text card. Anchored to colorway-2 (cream) strips because
+                  // that's where the initial scroll lands (midCopy=6, 6%4=2),
+                  // so the user always sees these images flanking the
+                  // centered card. Wraps seamlessly to strips 2 and 10 too.
+                  const isHeroSlot = c === textCol && (si % N_COLORS) === 2
                   let src: string
                   if (isHeroSlot && r === HERO_TOP_ROW) {
                     src = HERO_TOP_IMG

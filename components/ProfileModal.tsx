@@ -23,7 +23,7 @@ type Award   = { title: string; detail?: string; award: string }
 type Project = { date: string; title: string; detail?: string }
 
 const CERTIFICATIONS: Cert[] = [
-  { name: '국제 IHK Floral Designer', detail: '독일 상공회의소 인증 플로리스트' },
+  { name: '국제 IHK Floral Designer', detail: '독일 상공회의소 공인 플로리스트' },
 ]
 
 const AWARDS: Award[] = [
@@ -43,21 +43,22 @@ const AWARDS: Award[] = [
 ]
 
 const PROJECTS: Project[] = [
-  { date: '2026',                title: '고양국제꽃박람회 콜롬비아관' },
-  { date: '2025.12.24',          title: '마시는 米술관' },
-  { date: '2025.12.01',          title: '벤처 30주년 기념식' },
-  { date: '2025.11.28',          title: 'K-라이스페스타', detail: '농협 주관 · 농림축산식품부 후원' },
-  { date: '2025.11.27',          title: '2025 벤처1000억 기업 기념식' },
-  { date: '2025.11.15',          title: '에버랜드 × 스노우피크 캠프 필드' },
-  { date: '2025.03.26',          title: '삼성물산 홍성 아파트 로제비앙' },
-  { date: '2025.02.18 — 03.26',  title: '용인 시대인재 기숙학원' },
-  { date: '2024.12.24',          title: "영화 ‘보고타’ VIP 시사회" },
-  { date: '2024.11.27',          title: 'Colombia Travel Road Show', detail: 'Marina Park' },
-  { date: '2024.11.26',          title: 'EDIYA COFFE LAB × Flowers of Colombia' },
-  { date: '2024.11.25',          title: '2024 Flowers of Colombia' },
-  { date: '2024.09.26',          title: '서울클럽 120주년 기념식' },
-  { date: '2024',                title: "MBC 드라마 ‘바니와 오빠들’" },
-  { date: '2023.11.27',          title: '2023 Flowers of Colombia' },
+  { date: '2026', title: '고양국제꽃박람회 콜롬비아관' },
+  { date: '2025', title: '마시는 米술관' },
+  { date: '2025', title: '벤처 30주년 기념식' },
+  { date: '2025', title: 'K-라이스페스타', detail: '농협 주관 · 농림축산식품부 후원' },
+  { date: '2025', title: '2025 벤처1000억 기업 기념식' },
+  { date: '2025', title: '에버랜드 × 스노우피크 캠프 필드' },
+  { date: '2025', title: '독일 Hessen Park 전시' },
+  { date: '2025', title: '삼성물산 홍성 아파트 로제비앙 플랜테리어' },
+  { date: '2025', title: '용인 시대인재 기숙학원 플랜테리어' },
+  { date: '2024', title: "영화 ‘보고타’ VIP 시사회" },
+  { date: '2024', title: 'Marina Park Colombia Travel Road Show' },
+  { date: '2024', title: 'EDIYA COFFE LAB × Flowers of Colombia' },
+  { date: '2024', title: '2024 Flowers of Colombia' },
+  { date: '2024', title: '서울클럽 120주년 기념식 꽃 장식' },
+  { date: '2024', title: "MBC 드라마 ‘바니와 오빠들’" },
+  { date: '2023', title: '2023 Flowers of Colombia' },
 ]
 
 interface Props {

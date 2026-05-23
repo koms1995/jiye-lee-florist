@@ -13,8 +13,26 @@ import { themeForStrip, THEMES, type Theme } from './themes'
 
 // The IntroReveal plate uses the centered card's theme so the shrunken
 // rectangle visually merges with the underlying TextCard at the same spot.
-// midCopy=8 in PortfolioGrid puts a colorway-0 strip at center → THEMES[0].
-const INTRO_THEME: Theme = THEMES[0]
+// midCopy=6 in PortfolioGrid puts a colorway-2 strip at center → THEMES[2]
+// (cream bg with hot-pink accent — the new main theme).
+const INTRO_THEME: Theme = THEMES[2]
+
+// Caption mapping keyed by the numeric portion of the gallery filename
+// (e.g. "01.jpeg" → 1, "027.jpeg" → 27). Returns null for unmapped indices.
+function captionForImage(src: string): string | null {
+  const m = /(\d+)\.jpe?g/i.exec(src)
+  if (!m) return null
+  const n = parseInt(m[1], 10)
+  if (n === 1)                  return '2025 국제 꽃 장식 대회'
+  if (n >= 11 && n <= 14)       return '독일 Hessen Park 전시'
+  if (n >= 17 && n <= 20)       return '서울클럽 120주년 기념식'
+  if (n === 23 || n === 24)     return 'TIS 갤러리 오픈식'
+  if (n === 25)                 return '2026 고양국제꽃박람회 콜롬비아관'
+  if (n === 27 || n === 28 || n === 30) return 'EDIYA COFFE LAB × Flowers of Colombia'
+  if (n === 32 || n === 33)     return 'Marina Park Colombia Travel Road Show'
+  if (n === 35)                 return "영화 ‘보고타’ VIP 시사회"
+  return null
+}
 
 // Dynamic import keeps the WebGL bundle out of the initial payload.
 // `ssr: false` prevents server rendering where WebGL is unavailable.
@@ -60,7 +78,7 @@ export default function PortfolioApp({ images }: Props) {
   }
 
   function handleImageClick(layoutId: string, src: string) {
-    setLightboxImage({ layoutId, src })
+    setLightboxImage({ layoutId, src, title: captionForImage(src) ?? undefined })
   }
 
   return (
