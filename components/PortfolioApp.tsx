@@ -32,6 +32,7 @@ function captionForImage(src: string): string | null {
   if (n === 32 || n === 33)     return 'Marina Park Colombia Travel Road Show'
   if (n === 35)                 return "영화 ‘보고타’ VIP 시사회"
   if ((n >= 37 && n <= 39) || n === 42 || n === 43) return '용인 시대인재 기숙학원 플랜테리어'
+  if (n === 45)                 return 'Takashimaya × Harijanto Floral Extravagance'
   return null
 }
 
