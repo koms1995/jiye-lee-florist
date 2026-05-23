@@ -40,13 +40,15 @@ export const THEMES: readonly Theme[] = [
     point:   '#D8A9AC',
   },
   // ── 3 · Sand / Vermilion — name in vermilion, ink body
+  // Slight lightness lift over the original (eee3d9 / a5200c) for a softer
+  // hero feel on first paint.
   {
-    bg:      '#eee3d9',
-    title:   '#a5200c',
+    bg:      '#f3eae0',
+    title:   '#b82815',
     body:    '#2E1F1F',
     meta:    'rgba(46, 31, 31, 0.55)',
-    divider: 'rgba(165, 32, 12, 0.32)',
-    point:   '#a5200c',
+    divider: 'rgba(184, 40, 21, 0.32)',
+    point:   '#b82815',
   },
   // ── 4 · Pink / Ink — soft, blush, ink-on-pink ──────────────────────────
   {
