@@ -39,14 +39,14 @@ export const THEMES: readonly Theme[] = [
     divider: 'rgba(216, 169, 172, 0.32)',
     point:   '#D8A9AC',
   },
-  // ── 3 · Cream / Deep Wine — wine name only, ink body for everything else
+  // ── 3 · Sand / Vermilion — name in vermilion, ink body
   {
-    bg:      '#E6D5C3',
-    title:   '#A31047',
+    bg:      '#eee3d9',
+    title:   '#a5200c',
     body:    '#2E1F1F',
     meta:    'rgba(46, 31, 31, 0.55)',
-    divider: 'rgba(163, 16, 71, 0.32)',
-    point:   '#A31047',
+    divider: 'rgba(165, 32, 12, 0.32)',
+    point:   '#a5200c',
   },
   // ── 4 · Pink / Ink — soft, blush, ink-on-pink ──────────────────────────
   {
@@ -56,6 +56,15 @@ export const THEMES: readonly Theme[] = [
     meta:    'rgba(46, 31, 31, 0.55)',
     divider: 'rgba(46, 31, 31, 0.28)',
     point:   '#2E1F1F',
+  },
+  // ── 5 · Cool Gray / Mahogany — cool bg, deep red-brown name
+  {
+    bg:      '#d9dee1',
+    title:   '#642719',
+    body:    '#2E1F1F',
+    meta:    'rgba(46, 31, 31, 0.55)',
+    divider: 'rgba(100, 39, 25, 0.32)',
+    point:   '#642719',
   },
 ] as const
 
