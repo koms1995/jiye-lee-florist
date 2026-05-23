@@ -56,9 +56,20 @@ export default function ImageLightbox({ image, onClose }: Props) {
             position:        'fixed',
             inset:           0,
             zIndex:          950,
+            // flex-column with flex-end anchoring + uniform gap. The image
+            // bottom edge is anchored at (viewport_bottom − paddingBottom),
+            // and the caption sits exactly `gap` below it. paddingBottom is
+            // sized so the caption-to-PillButton gap matches that same value,
+            // so image↔caption↔Pill are visually equidistant regardless of
+            // the photo's aspect ratio.
             display:         'flex',
+            flexDirection:   'column',
             alignItems:      'center',
-            justifyContent:  'center',
+            justifyContent:  'flex-end',
+            gap:             isMobile ? '1.4rem' : '1.8rem',
+            // = PillButton bottom (1.5rem) + pill height (~2.4rem) + uniform gap.
+            paddingBottom:   isMobile ? 'calc(1.5rem + 2.4rem + 1.4rem)' : 'calc(1.5rem + 2.4rem + 1.8rem)',
+            paddingTop:      '5rem',
             backgroundColor: 'rgba(243, 229, 205, 0.72)',
             backdropFilter:        'blur(12px)',
             WebkitBackdropFilter:  'blur(12px)',
@@ -98,68 +109,59 @@ export default function ImageLightbox({ image, onClose }: Props) {
             ×
           </motion.button>
 
-          {/* Image + caption wrapper — wrapper width collapses to the image's
-              intrinsic rendered width (contain-fit), so an absolutely-positioned
-              caption inside this wrapper centers on the actual photo, not the
-              viewport. maxHeight reduced (78→70vh) to reserve room below for
-              the caption + PillButtons. */}
-          <div style={{ position: 'relative' }}>
-            <motion.div
-              layoutId={image.layoutId}
-              onClick={(e) => e.stopPropagation()}
-              transition={TRANSITION}
+          {/* Image — flex child, anchored to bottom of viewport (minus padding). */}
+          <motion.div
+            layoutId={image.layoutId}
+            onClick={(e) => e.stopPropagation()}
+            transition={TRANSITION}
+            style={{
+              position:     'relative',
+              maxWidth:     '78vw',
+              maxHeight:    '70vh',
+              borderRadius: 8,
+              overflow:     'hidden',
+              cursor:       'default',
+              boxShadow:    '0 30px 80px rgba(46, 31, 31, 0.18)',
+              flexShrink:   0,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image.src}
+              alt={image.title ?? ''}
+              draggable={false}
               style={{
-                position:     'relative',
-                maxWidth:     '78vw',
-                maxHeight:    '70vh',
-                borderRadius: 8,
-                overflow:     'hidden',
-                cursor:       'default',
-                boxShadow:    '0 30px 80px rgba(46, 31, 31, 0.18)',
+                display:    'block',
+                width:      'auto',
+                height:     'auto',
+                maxWidth:   '78vw',
+                maxHeight:  '70vh',
+                objectFit:  'contain',
+                userSelect: 'none',
+              }}
+            />
+          </motion.div>
+
+          {/* Caption — flex sibling under the image. alignItems:center on the
+              parent flex column centers it horizontally on the same axis as
+              the image (both share the viewport's vertical axis = the photo's
+              center, since the photo is also centered horizontally). */}
+          {(image.title || image.date) && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
+              exit={{ opacity: 0, y: 8, transition: { duration: 0.20 } }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                textAlign:     'center',
+                color:         '#2E1F1F',
+                pointerEvents: 'none',
+                zIndex:        2,
+                whiteSpace:    'nowrap',
+                maxWidth:      '92vw',
+                flexShrink:    0,
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={image.src}
-                alt={image.title ?? ''}
-                draggable={false}
-                style={{
-                  display:    'block',
-                  width:      'auto',
-                  height:     'auto',
-                  maxWidth:   '78vw',
-                  maxHeight:  '70vh',
-                  objectFit:  'contain',
-                  userSelect: 'none',
-                }}
-              />
-            </motion.div>
-
-            {/* Caption — absolute to the photo wrapper so it horizontally
-                centers on the photo (not the viewport). Hangs ~3rem below the
-                image. PillButtons sit at bottom:1.5rem of the viewport — the
-                lowered image maxHeight (70vh) guarantees a clean gap. */}
-            {(image.title || image.date) && (
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
-                exit={{ opacity: 0, y: 8, transition: { duration: 0.20 } }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  position:      'absolute',
-                  bottom:        '-3rem',
-                  left:          0,
-                  right:         0,
-                  textAlign:     'center',
-                  color:         '#2E1F1F',
-                  pointerEvents: 'none',
-                  zIndex:        2,
-                  // nowrap keeps the longest caption (EDIYA × Flowers of Colombia)
-                  // on a single line. On mobile the font drops to 0.78rem so the
-                  // line stays within the photo's rendered width.
-                  whiteSpace:    'nowrap',
-                }}
-              >
               {image.title && (
                 <motion.p
                   initial={{ opacity: 0, y: 12 }}
@@ -196,7 +198,6 @@ export default function ImageLightbox({ image, onClose }: Props) {
               )}
             </motion.div>
           )}
-          </div>
         </motion.div>
       )}
     </AnimatePresence>
