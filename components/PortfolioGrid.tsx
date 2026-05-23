@@ -523,11 +523,14 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
                   } else if (isHeroSlot && r === HERO_BOTTOM_ROW) {
                     src = HERO_BOTTOM_IMG
                   } else if (isMobile && c === textCol && imgs.length > N_ROWS) {
-                    // Mobile center column uses ALL images for variety, but
-                    // the strip index is modulo'd by N_COLORS so wrap-aligned
-                    // strips (0, 4, 8…) show the same images — no abrupt
-                    // image swap at the wrap boundary.
-                    src = imgs[((si % N_COLORS) * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
+                    // Mobile center column — only column visible on phones, so
+                    // every gallery image needs to surface here. Cycling by
+                    // STRIP_COPIES (not N_COLORS) gives STRIP_COPIES *
+                    // IMGS_PER_STRIP = 48 slots, enough to cover all ~45
+                    // images. STRIP_COPIES is a multiple of N_COLORS so the
+                    // hero override (anchored to colorway-2) stays aligned at
+                    // every wrap.
+                    src = imgs[((si % STRIP_COPIES) * IMGS_PER_STRIP + imgIdx) % imgs.length] ?? ''
                   } else {
                     src = imgs?.[imgIdx % (imgs?.length || 1)] ?? ''
                   }
