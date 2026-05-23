@@ -91,7 +91,7 @@ export default function PillButtons({ theme }: Props) {
     <div
       className="fixed flex gap-3"
       style={{
-        bottom:    '5rem',
+        bottom:    '1.5rem',
         left:      '50%',
         transform: 'translateX(-50%)',
         zIndex:    1000,

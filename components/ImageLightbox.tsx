@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 const TRANSITION = { duration: 0.6, ease: [0.43, 0.13, 0.23, 0.96] as const }
 const TEXT_DELAY = 0.2          // staggered text appears after image expands
@@ -19,6 +19,16 @@ interface Props {
 }
 
 export default function ImageLightbox({ image, onClose }: Props) {
+  // Track viewport for mobile-only caption font scaling (no media-query API
+  // available inside inline style objects).
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   // ESC to close + body scroll lock while open
   useEffect(() => {
     if (!image) return
@@ -88,56 +98,68 @@ export default function ImageLightbox({ image, onClose }: Props) {
             ×
           </motion.button>
 
-          {/* Image container — stops propagation so clicks on the image don't close */}
-          <motion.div
-            layoutId={image.layoutId}
-            onClick={(e) => e.stopPropagation()}
-            transition={TRANSITION}
-            style={{
-              position:     'relative',
-              maxWidth:     '78vw',
-              maxHeight:    '78vh',
-              borderRadius: 8,
-              overflow:     'hidden',
-              cursor:       'default',
-              boxShadow:    '0 30px 80px rgba(46, 31, 31, 0.18)',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image.src}
-              alt={image.title ?? ''}
-              draggable={false}
-              style={{
-                display:    'block',
-                width:      'auto',
-                height:     'auto',
-                maxWidth:   '78vw',
-                maxHeight:  '78vh',
-                objectFit:  'contain',
-                userSelect: 'none',
-              }}
-            />
-          </motion.div>
-
-          {/* Caption — staggered fade-up after image lands */}
-          {(image.title || image.date) && (
+          {/* Image + caption wrapper — wrapper width collapses to the image's
+              intrinsic rendered width (contain-fit), so an absolutely-positioned
+              caption inside this wrapper centers on the actual photo, not the
+              viewport. maxHeight reduced (78→70vh) to reserve room below for
+              the caption + PillButtons. */}
+          <div style={{ position: 'relative' }}>
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
-              exit={{ opacity: 0, y: 8, transition: { duration: 0.20 } }}
+              layoutId={image.layoutId}
               onClick={(e) => e.stopPropagation()}
+              transition={TRANSITION}
               style={{
-                position:      'fixed',
-                bottom:        '2.25rem',
-                left:          '50%',
-                transform:     'translateX(-50%)',
-                textAlign:     'center',
-                color:         '#2E1F1F',
-                pointerEvents: 'none',
-                zIndex:        2,
+                position:     'relative',
+                maxWidth:     '78vw',
+                maxHeight:    '70vh',
+                borderRadius: 8,
+                overflow:     'hidden',
+                cursor:       'default',
+                boxShadow:    '0 30px 80px rgba(46, 31, 31, 0.18)',
               }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.src}
+                alt={image.title ?? ''}
+                draggable={false}
+                style={{
+                  display:    'block',
+                  width:      'auto',
+                  height:     'auto',
+                  maxWidth:   '78vw',
+                  maxHeight:  '70vh',
+                  objectFit:  'contain',
+                  userSelect: 'none',
+                }}
+              />
+            </motion.div>
+
+            {/* Caption — absolute to the photo wrapper so it horizontally
+                centers on the photo (not the viewport). Hangs ~3rem below the
+                image. PillButtons sit at bottom:1.5rem of the viewport — the
+                lowered image maxHeight (70vh) guarantees a clean gap. */}
+            {(image.title || image.date) && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
+                exit={{ opacity: 0, y: 8, transition: { duration: 0.20 } }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position:      'absolute',
+                  bottom:        '-3rem',
+                  left:          0,
+                  right:         0,
+                  textAlign:     'center',
+                  color:         '#2E1F1F',
+                  pointerEvents: 'none',
+                  zIndex:        2,
+                  // nowrap keeps the longest caption (EDIYA × Flowers of Colombia)
+                  // on a single line. On mobile the font drops to 0.78rem so the
+                  // line stays within the photo's rendered width.
+                  whiteSpace:    'nowrap',
+                }}
+              >
               {image.title && (
                 <motion.p
                   initial={{ opacity: 0, y: 12 }}
@@ -145,7 +167,7 @@ export default function ImageLightbox({ image, onClose }: Props) {
                   exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }}
                   style={{
                     fontFamily:    'var(--font-pretendard), var(--font-inter), sans-serif',
-                    fontSize:      '0.95rem',
+                    fontSize:      isMobile ? '0.78rem' : '0.95rem',
                     fontWeight:    500,
                     letterSpacing: '-0.012em',
                     margin:        0,
@@ -174,6 +196,7 @@ export default function ImageLightbox({ image, onClose }: Props) {
               )}
             </motion.div>
           )}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
