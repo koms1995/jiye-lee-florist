@@ -452,7 +452,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
         overflow:        'clip',
         touchAction:     'none',
         cursor:          'ns-resize',
-        backgroundColor: '#f0e9b6',
+        backgroundColor: '#fffbf5',
         animation:       ready ? 'gridIntro 0.4s cubic-bezier(0.43, 0.13, 0.23, 0.96) 0.3s both' : 'none',
         opacity:         ready ? undefined : 0,
         transformOrigin: 'center center',
@@ -484,7 +484,7 @@ export default function PortfolioGrid({ images, onProfileClick, onImageClick, ac
                   left:            0,
                   width:           colW,
                   height:          stripH,
-                  backgroundColor: '#f0e9b6',
+                  backgroundColor: '#fffbf5',
                   contain:         'layout paint',
                 }}
               >
