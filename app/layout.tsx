@@ -23,6 +23,14 @@ export const metadata: Metadata = {
     description: 'Floral design by Jiye Lee.',
     type: 'website',
   },
+  // Explicit icon declarations override Next.js' auto-detected favicon.ico
+  // so the new rose PNG takes precedence in browsers that prefer the first
+  // <link rel="icon"> entry.
+  icons: {
+    icon:     [{ url: '/icon.png',       type: 'image/png', sizes: '512x512' }],
+    apple:    [{ url: '/apple-icon.png', type: 'image/png', sizes: '512x512' }],
+    shortcut: '/icon.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
