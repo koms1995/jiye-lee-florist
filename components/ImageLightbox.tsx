@@ -56,20 +56,15 @@ export default function ImageLightbox({ image, onClose }: Props) {
             position:        'fixed',
             inset:           0,
             zIndex:          950,
-            // flex-column with flex-end anchoring + uniform gap. The image
-            // bottom edge is anchored at (viewport_bottom − paddingBottom),
-            // and the caption sits exactly `gap` below it. paddingBottom is
-            // sized so the caption-to-PillButton gap matches that same value,
-            // so image↔caption↔Pill are visually equidistant regardless of
-            // the photo's aspect ratio.
+            // Flex center — image sits at the viewport's optical center
+            // regardless of its aspect ratio (square/portrait/landscape all
+            // centered via objectFit:contain inside the maxW/maxH box).
+            // The caption rides below the image via absolute positioning on
+            // the image wrapper, so it stays attached to the photo even as
+            // the photo's actual rendered size changes.
             display:         'flex',
-            flexDirection:   'column',
             alignItems:      'center',
-            justifyContent:  'flex-end',
-            gap:             isMobile ? '1.4rem' : '1.8rem',
-            // = PillButton bottom (1.5rem) + pill height (~2.4rem) + uniform gap.
-            paddingBottom:   isMobile ? 'calc(1.5rem + 2.4rem + 1.4rem)' : 'calc(1.5rem + 2.4rem + 1.8rem)',
-            paddingTop:      '5rem',
+            justifyContent:  'center',
             backgroundColor: 'rgba(243, 229, 205, 0.72)',
             backdropFilter:        'blur(12px)',
             WebkitBackdropFilter:  'blur(12px)',
@@ -109,95 +104,105 @@ export default function ImageLightbox({ image, onClose }: Props) {
             ×
           </motion.button>
 
-          {/* Image — flex child, anchored to bottom of viewport (minus padding). */}
-          <motion.div
-            layoutId={image.layoutId}
-            onClick={(e) => e.stopPropagation()}
-            transition={TRANSITION}
-            style={{
-              position:     'relative',
-              maxWidth:     '78vw',
-              maxHeight:    '70vh',
-              borderRadius: 8,
-              overflow:     'hidden',
-              cursor:       'default',
-              boxShadow:    '0 30px 80px rgba(46, 31, 31, 0.18)',
-              flexShrink:   0,
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image.src}
-              alt={image.title ?? ''}
-              draggable={false}
-              style={{
-                display:    'block',
-                width:      'auto',
-                height:     'auto',
-                maxWidth:   '78vw',
-                maxHeight:  '70vh',
-                objectFit:  'contain',
-                userSelect: 'none',
-              }}
-            />
-          </motion.div>
-
-          {/* Caption — flex sibling under the image. alignItems:center on the
-              parent flex column centers it horizontally on the same axis as
-              the image (both share the viewport's vertical axis = the photo's
-              center, since the photo is also centered horizontally). */}
-          {(image.title || image.date) && (
+          {/* Image wrapper — block element whose intrinsic size collapses to
+              the image's rendered dimensions (contain-fit inside maxW/maxH).
+              Caption is positioned absolute against this wrapper so it always
+              sits directly below the photo and centers on the photo's actual
+              width (not the viewport). */}
+          <div style={{ position: 'relative' }}>
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
-              exit={{ opacity: 0, y: 8, transition: { duration: 0.20 } }}
+              layoutId={image.layoutId}
               onClick={(e) => e.stopPropagation()}
+              transition={TRANSITION}
               style={{
-                textAlign:     'center',
-                color:         '#2E1F1F',
-                pointerEvents: 'none',
-                zIndex:        2,
-                whiteSpace:    'nowrap',
-                maxWidth:      '92vw',
-                flexShrink:    0,
+                // Mobile maxHeight (65vh) is intentionally tighter than desktop
+                // (75vh) so a portrait photo at viewport center still clears
+                // the caption + PillButtons stack on a 844px iPhone height.
+                position:     'relative',
+                display:      'block',
+                maxWidth:     isMobile ? '92vw' : '80vw',
+                maxHeight:    isMobile ? '65vh' : '75vh',
+                borderRadius: 8,
+                overflow:     'hidden',
+                cursor:       'default',
+                boxShadow:    '0 30px 80px rgba(46, 31, 31, 0.18)',
               }}
             >
-              {image.title && (
-                <motion.p
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY + 0.05, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
-                  exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }}
-                  style={{
-                    fontFamily:    'var(--font-pretendard), var(--font-inter), sans-serif',
-                    fontSize:      isMobile ? '0.78rem' : '0.95rem',
-                    fontWeight:    500,
-                    letterSpacing: '-0.012em',
-                    margin:        0,
-                  }}
-                >
-                  {image.title}
-                </motion.p>
-              )}
-              {image.date && (
-                <motion.p
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY + 0.13, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
-                  exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }}
-                  style={{
-                    fontFamily:    'var(--font-inter), system-ui, sans-serif',
-                    fontSize:      '0.68rem',
-                    fontWeight:    400,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    color:         'rgba(46, 31, 31, 0.62)',
-                    margin:        '0.42rem 0 0',
-                  }}
-                >
-                  {image.date}
-                </motion.p>
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.src}
+                alt={image.title ?? ''}
+                draggable={false}
+                style={{
+                  display:    'block',
+                  width:      'auto',
+                  height:     'auto',
+                  maxWidth:   isMobile ? '92vw' : '80vw',
+                  maxHeight:  isMobile ? '65vh' : '75vh',
+                  objectFit:  'contain',
+                  userSelect: 'none',
+                }}
+              />
             </motion.div>
-          )}
+
+            {/* Caption — absolute against the image wrapper. Hangs below the
+                photo at a small fixed offset; horizontally fills the wrapper
+                width (= photo width) and centers via textAlign. */}
+            {(image.title || image.date) && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
+                exit={{ opacity: 0, y: 8, transition: { duration: 0.20 } }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position:      'absolute',
+                  bottom:        isMobile ? '-2.3rem' : '-2.8rem',
+                  left:          0,
+                  right:         0,
+                  textAlign:     'center',
+                  color:         '#2E1F1F',
+                  pointerEvents: 'none',
+                  zIndex:        2,
+                  whiteSpace:    'nowrap',
+                }}
+              >
+                {image.title && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY + 0.05, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
+                    exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }}
+                    style={{
+                      fontFamily:    'var(--font-pretendard), var(--font-inter), sans-serif',
+                      fontSize:      isMobile ? '0.78rem' : '0.95rem',
+                      fontWeight:    500,
+                      letterSpacing: '-0.012em',
+                      margin:        0,
+                    }}
+                  >
+                    {image.title}
+                  </motion.p>
+                )}
+                {image.date && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0, transition: { delay: TEXT_DELAY + 0.13, duration: 0.42, ease: [0.43, 0.13, 0.23, 0.96] } }}
+                    exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }}
+                    style={{
+                      fontFamily:    'var(--font-inter), system-ui, sans-serif',
+                      fontSize:      '0.68rem',
+                      fontWeight:    400,
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color:         'rgba(46, 31, 31, 0.62)',
+                      margin:        '0.42rem 0 0',
+                    }}
+                  >
+                    {image.date}
+                  </motion.p>
+                )}
+              </motion.div>
+            )}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
